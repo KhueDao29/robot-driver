@@ -17,12 +17,14 @@ int inR2 = 7;
 
 //IF sensor
 // int pinLED = 13;
-int pinIR_L = 10; //left
-int pinIR_R = 9; //right
+int pinIR_L = 11; //left
+int pinIR_R = 10; //right
 int pinIR_FL = 12; //front left
 int pinIR_FR = 13; //front right 
 
 const int K = 30;  //adjust K for smooth response
+
+
 
 void setup()
 {
@@ -66,46 +68,18 @@ void loop() {
   int sensorR = digitalRead(pinIR_R);
   int sensorFL = digitalRead(pinIR_FL);
   int sensorFR = digitalRead(pinIR_FR);
-  
-  // 2 front sensors off, 2 side sensors on
-  // if (sensorFL == HIGH & sensorFR == HIGH & sensorL == LOW & sensorR == LOW) {
-  //   goForward(100);
-  //   delay(500);
-  // }
 
-  // //turn around if 2 front sensors on, 2 side sensors on (hit wall) (ngõ cụt)
-  // if (sensorFL == LOW & sensorFR == LOW & sensorL == LOW & sensorR == LOW) {
-  //   Serial.println("turning around");
-  //   turnAround();
-  //   delay(900);
-  //   stop();
-  // }
+  // Serial.println("sensor L = " + sensorL);
+  // Serial.println("sensor R = " + sensorR);
+  // Serial.println("sensor FL = " + sensorFL);
+  // Serial.println("sensor FR = " + sensorFR);
 
-  //move to the left when too close to right wall (both right sensors on)
-  if (sensorR == LOW & sensorFR == LOW & sensorL == LOW & sensorFL == HIGH) {
-    Serial.println("turning left");
-    turnLeft(100);
-    delay(100);
-  }
+  String sensorValue = readSensor(sensorL, sensorR, sensorFL, sensorFR);
+  Serial.println(sensorValue);
+  action(sensorValue);
+  stop();
+  delay(1000);
 
-  // //move to the right when too close to right wall (both left sensors on)
-  if (sensorL == LOW & sensorFL == LOW & sensorR == LOW & sensorFR == HIGH) {
-    Serial.println("turning right");
-    turnRight(100);
-    delay(100);
-
-  }
-
-  //turn right if sensorR low
-  // if (sensorR == HIGH) {
-  //   turnRight(50);
-  // }
-
-  // //turn left if 2 left sensors off, 2 right sensor on
-  // if (sensorL == HIGH & sensorFL == LOW & sensorR == LOW & sensorFR == LOW) {
-  //   turnLeft(100);
-  //   delay(500);
-  // }
 }
 
 void goForward(int speed) {
@@ -162,7 +136,7 @@ void turnRight(int speed) {
   leftEnCount = 0;
 
   // int speed = 50;
-  const int turnWeight = 2;
+  const int turnWeight = 1;
 	analogWrite(enR, speed);
 
   int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);  
@@ -171,8 +145,8 @@ void turnRight(int speed) {
 	// Turn on motor A & B
 	digitalWrite(inL1, LOW);
 	digitalWrite(inL2, HIGH);
-	// digitalWrite(inR1, HIGH);
-	// digitalWrite(inR2, LOW);  
+	digitalWrite(inR1, HIGH);
+	digitalWrite(inR2, LOW);  
 }
 
 void turnLeft(int speed) {
@@ -181,18 +155,120 @@ void turnLeft(int speed) {
   leftEnCount = 0;
 
   // int speed = 50;
-  const int turnWeight = 2;
+  const int turnWeight = 1;
 	analogWrite(enL, speed);
 
   int motor_R_speed = turnWeight*speed + K*(turnWeight*leftEnCount-rightEnCount);  
   analogWrite(enR, motor_R_speed);
 
 	// Turn on motor A & B
-	// digitalWrite(inL1, LOW);
-	// digitalWrite(inL2, HIGH);
+	digitalWrite(inL1, LOW);
+	digitalWrite(inL2, HIGH);
 	digitalWrite(inR1, HIGH);
 	digitalWrite(inR2, LOW);  
 }
+
+String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR) {
+  if (sensorL == HIGH) {
+    sensorL = 0;
+  } else {
+    sensorL = 1;
+  }
+
+  if (sensorR == HIGH) {
+    sensorR = 0;
+  } else {
+    sensorR = 1;
+  }
+
+  if (sensorFL == HIGH) {
+    sensorFL = 0;
+  } else {
+    sensorFL = 1;
+  }
+
+  if (sensorFR == HIGH) {
+    sensorFR = 0;
+  } else {
+    sensorFR = 1;
+  }
+
+  return String(sensorL) + String(sensorR) + String(sensorFL) + String(sensorFR);
+}
+
+void action(String sensorValue) {
+  const int speed = 100;
+  const int delayTime = 500;
+  int value = sensorValue.toInt();
+  switch (value) {
+    case 0000: //1
+      goForward(speed);
+      delay(delayTime);
+      break;
+    case 0001: //2
+      // goForward(speed);
+      turnLeft(speed);
+      delay(delayTime);
+      break;
+    case 0010: //3
+      turnLeft(speed);
+      delay(delayTime);
+      break;
+    case 0011: //4
+      turnLeft(speed);
+      delay(delayTime);
+      break;
+    case 0100://5
+      turnLeft(speed);
+      delay(delayTime);
+      break;
+    case 0101: //6
+      turnLeft(speed);
+      delay(100);
+      break;
+    case 0110: //7
+      turnLeft(speed);
+      delay(200);
+      break;
+    case 0111: //8
+      turnLeft(speed);
+      delay(delayTime);
+      break;
+    case 1000: //9
+      goForward(speed);
+      delay(delayTime);
+      break;
+    case 1001: //10
+      turnRight(speed);
+      delay(200);
+      break;
+    case 1010: //11
+      turnRight(speed);
+      delay(100);
+      break;
+    case 1011: //12
+      turnAround(); //hoặc quẹo phải 
+      delay(delayTime);
+      break;
+    case 1100: //13
+      goForward(speed); 
+      delay(delayTime);
+      break;
+    case 1101: //14
+      turnLeft(speed);
+      delay(100);
+      break;
+    case 1110: //15
+      turnRight(speed);
+      delay(100);
+      break;
+    case 1111: //16
+      turnAround();
+      delay(delayTime);
+      break;
+    }
+  }
+
 
 void leftEnISR() {
   leftEnCount++;
