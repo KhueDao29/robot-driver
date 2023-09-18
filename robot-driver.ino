@@ -1,6 +1,6 @@
-//Mega2560
-// external interrupt int.0    int.1    int.2   int.3   int.4   int.5
-// pin                  2         3      21      20      19      18
+// Mega2560
+//  external interrupt int.0    int.1    int.2   int.3   int.4   int.5
+//  pin                  2         3      21      20      19      18
 
 volatile int leftEnCount = 0;
 volatile int rightEnCount = 0;
@@ -15,34 +15,29 @@ int inR1 = 6;
 int inR2 = 7;
 int enR = 9;
 
-//IF sensor
-// int pinLED = 13;
-int pinIR_L = 10;   //left
-int pinIR_FL = 11;  //front left
-int pinIR_R = 12;   //right
-int pinIR_FR = 13;  //front right
+// IF sensor
+int pinIR_L = 10;  // left
+int pinIR_FL = 11; // front left
+int pinIR_R = 12;  // right
+int pinIR_FR = 13; // front right
 
-const int K = 30;  //adjust K for smooth response
+const int K = 30; // adjust K for smooth response
 
-
-
-void setup() {
+void setup()
+{
   Serial.begin(9600);
 
-  //configure the IR pin as an input
+  // configure the IR pin as an input
   pinMode(pinIR_L, INPUT);
   pinMode(pinIR_R, INPUT);
   pinMode(pinIR_FL, INPUT);
   pinMode(pinIR_FR, INPUT);
 
-  // // LED
-  // pinMode(pinLED, OUTPUT);
-
   // interrupt # 5, pin 18
-  attachInterrupt(5, leftEnISR, CHANGE);  // Also LOW, RISING, FALLING
+  attachInterrupt(5, leftEnISR, CHANGE); // Also LOW, RISING, FALLING
 
   // interrupt # 4, pin 19
-  attachInterrupt(4, rightEnISR, CHANGE);  // Also LOW, RISING, FALLING
+  attachInterrupt(4, rightEnISR, CHANGE); // Also LOW, RISING, FALLING
 
   // Set all the motor control pins to outputs
   pinMode(enR, OUTPUT);
@@ -59,7 +54,8 @@ void setup() {
   digitalWrite(inL2, LOW);
 }
 
-void loop() {
+void loop()
+{
   // Serial.println(leftEnCount);
   // Serial.println(rightEnCount);
   int sensorL = digitalRead(pinIR_L);
@@ -73,12 +69,14 @@ void loop() {
   // Serial.println("sensor FR = " + sensorFR);
 
   String sensorValue = readSensor(sensorL, sensorR, sensorFL, sensorFR);
+  Serial.print(sensorValue + " ");
   action(sensorValue);
   stop();
   delay(1000);
 }
 
-void goForward(int speed) {
+void goForward(int speed)
+{
   // Reset encoder counter
   rightEnCount = 0;
   leftEnCount = 0;
@@ -96,7 +94,8 @@ void goForward(int speed) {
   digitalWrite(inR2, LOW);
 }
 
-void stop() {
+void stop()
+{
   // Turn off motors
   digitalWrite(inR1, LOW);
   digitalWrite(inR2, LOW);
@@ -104,8 +103,8 @@ void stop() {
   digitalWrite(inL2, LOW);
 }
 
-
-void turnAround() {
+void turnAround()
+{
   // Reset encoder counter
   rightEnCount = 0;
   leftEnCount = 0;
@@ -125,8 +124,8 @@ void turnAround() {
   digitalWrite(inR2, HIGH);
 }
 
-
-void turnRight(int speed) {
+void turnRight(int speed)
+{
   // Reset encoder counter
   rightEnCount = 0;
   leftEnCount = 0;
@@ -145,7 +144,8 @@ void turnRight(int speed) {
   digitalWrite(inR2, LOW);
 }
 
-void turnLeft(int speed) {
+void turnLeft(int speed)
+{
   // Reset encoder counter
   rightEnCount = 0;
   leftEnCount = 0;
@@ -164,130 +164,134 @@ void turnLeft(int speed) {
   digitalWrite(inR2, LOW);
 }
 
-String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR) {
-  if (sensorL == HIGH) {
+String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
+{
+  if (sensorL == HIGH)
+  {
     sensorL = 0;
-  } else {
+  }
+  else
+  {
     sensorL = 1;
   }
 
-  if (sensorR == HIGH) {
+  if (sensorR == HIGH)
+  {
     sensorR = 0;
-  } else {
+  }
+  else
+  {
     sensorR = 1;
   }
 
-  if (sensorFL == HIGH) {
+  if (sensorFL == HIGH)
+  {
     sensorFL = 0;
-  } else {
+  }
+  else
+  {
     sensorFL = 1;
   }
 
-  if (sensorFR == HIGH) {
+  if (sensorFR == HIGH)
+  {
     sensorFR = 0;
-  } else {
+  }
+  else
+  {
     sensorFR = 1;
   }
 
   return String(sensorL) + String(sensorR) + String(sensorFL) + String(sensorFR);
 }
 
-void action(String sensorValue) {
+void action(String sensorValue)
+{
   const int speed = 100;
   const int delayTime = 500;
-  if (sensorValue == "0000") {  //1
+  const int value = sensorValue.toInt();
+  switch (value)
+  {
+  case 0000:
     goForward(speed);
     delay(delayTime);
     Serial.println("Go forward!");
-  }
-  if (sensorValue == "0001") {
-    // goForward(speed);
+    break;
+  case 0001:
     Serial.println("Detected wall in front at a right angle. Turn left!");
+    // goForward(speed);
     turnLeft(speed);
     delay(delayTime);
-  }
-  if (sensorValue == "0010") {
+  case 0010:
     Serial.println("Detected wall in front at a left angle. Turn left!");
     turnLeft(speed);
     delay(delayTime);
-  }  //3
-  if (sensorValue == "0011") {
+  case 0011:
     Serial.println("Dectected wall in front with both side wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
-  }  //4
-  if (sensorValue == "0100") {
+  case 0100:
     Serial.println("Dectected left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
-  }  //5
-  if (sensorValue == "0101") {
+  case 0101:
     Serial.println("Dectected too close to right wall. Turn left a bit!");
     turnLeft(speed);
     delay(100);
-  }  //6
-  if (sensorValue == "0110") {
+  case 0110:
     Serial.println("Detected wall in front at a right angle but too close to right wall. Turn right a bit then left!");
     turnRight(speed);
     delay(200);
-  }  //7
-  turnLeft(speed);
-  delay(delayTime);
-  if (sensorValue == "0111") {
+    turnLeft(speed);
+    delay(delayTime);
+  case 0111:
     Serial.println("Detected wall in front and left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
-  }  //8
-  if (sensorValue == "1000") {
+  case 1000:
     Serial.println("Detected left wall close and in front open. Go forward!");
     goForward(speed);
     delay(delayTime);
-  }  //9
-  if (sensorValue == "1001") {
+  case 1001:
     Serial.println("Detected wall in front at a left angle but too close to left wall. Turn left a bit then right!");
     turnLeft(speed);
     delay(200);
     turnRight(speed);
     delay(delayTime);
-  }  //10
-  if (sensorValue == "1010") {
+  case 1010:
     Serial.println("Detected too close to left wall. Turn right a bit!");
     turnRight(speed);
     delay(100);
-  }  //11
-  if (sensorValue == "1011") {
+  case 1011:
     Serial.println("Detected wall in front and right wall open. Turn right!");
-    // turnAround(); //hoặc quẹo phải
+    // turnAround();
     turnRight(speed);
     delay(delayTime);
-  }  //12
-  if (sensorValue == "1100") {
+  case 1100:
     Serial.println("Go forward!");
     goForward(speed);
     delay(delayTime);
-  }  //13
-  if (sensorValue == "1101") {
+  case 1101:
     Serial.println("Detected too close to right wall. Turn left a bit!");
     turnLeft(speed);
     delay(100);
-  }  //14
-  if (sensorValue == "1110") {
+  case 1110:
     Serial.println("Detected too close to left wall. Turn right a bit!");
     turnRight(speed);
     delay(100);
-  }  //15
-  if (sensorValue == "1111") {
+  case 1111:
     Serial.println("Detected dead end. Turn around!");
     turnAround();
     delay(delayTime);
-  }  //16
+  }
 }
 
-
-void leftEnISR() {
+void leftEnISR()
+{
   leftEnCount++;
 }
 
-void rightEnISR() {
+void rightEnISR()
+{
   rightEnCount++;
 }
