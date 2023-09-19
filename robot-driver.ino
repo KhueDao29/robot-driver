@@ -283,6 +283,10 @@ void action(String sensorValue)
     Serial.println("Detected dead end. Turn around!");
     turnAround();
     delay(delayTime);
+    default:
+      Serial.println("Default. Go forward");
+    goForward(speed);
+    delay(delayTime);
   }
 }
 
