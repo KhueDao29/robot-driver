@@ -266,6 +266,9 @@ void action(String sensorValue) {
       turnAround();
       delay(delayTime);
       break;
+    default:
+      goFoward(speed);
+      delay(delayTime);
     }
   }
 
