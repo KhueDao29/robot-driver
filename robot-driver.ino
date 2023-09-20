@@ -130,12 +130,15 @@ void turnRight(int speed)
   leftEnCount = 0;
 
   // int speed = 50;
-  const int turnWeight = 1;
+  const int turnWeight = 3;
   analogWrite(enR, speed);
 
   int motor_L_speed = turnWeight * speed + K * (turnWeight * rightEnCount - leftEnCount);
   analogWrite(enL, motor_L_speed);
 
+  Serial.print(motor_L_speed);
+  Serial.print(" ");
+  Serial.println(speed);
   // Turn on motor A & B
   digitalWrite(inL1, LOW);
   digitalWrite(inL2, HIGH);
@@ -150,11 +153,15 @@ void turnLeft(int speed)
   leftEnCount = 0;
 
   // int speed = 50;
-  const int turnWeight = 1;
+  const int turnWeight = 3;
   analogWrite(enL, speed);
 
   int motor_R_speed = turnWeight * speed + K * (turnWeight * leftEnCount - rightEnCount);
   analogWrite(enR, motor_R_speed);
+
+  Serial.print(speed);
+  Serial.print(" ");
+  Serial.println(motor_R_speed);
 
   // Turn on motor A & B
   digitalWrite(inL1, LOW);
