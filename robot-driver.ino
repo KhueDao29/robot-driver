@@ -212,45 +212,45 @@ void action(String sensorValue)
   const int value = sensorValue.toInt();
   switch (value)
   {
-  case 0000:
+  case 0:
     goForward(speed);
     delay(delayTime);
     Serial.println("Go forward!");
     break;
-  case 0001:
+  case 1:
     Serial.println("Detected wall in front at a right angle. Turn left!");
     // goForward(speed);
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 0010:
+  case 10:
     Serial.println("Detected wall in front at a left angle. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 0011:
+  case 11:
     Serial.println("Dectected wall in front with both side wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 0100:
+  case 100:
     Serial.println("Dectected left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 0101:
+  case 101:
     Serial.println("Dectected too close to right wall. Turn left a bit!");
     turnLeft(speed);
     delay(100);
     break;
-  case 0110:
+  case 110:
     Serial.println("Detected wall in front at a right angle but too close to right wall. Turn right a bit then left!");
     turnRight(speed);
     delay(200);
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 0111:
+  case 111:
     Serial.println("Detected wall in front and left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
