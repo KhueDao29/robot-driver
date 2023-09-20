@@ -222,71 +222,86 @@ void action(String sensorValue)
     // goForward(speed);
     turnLeft(speed);
     delay(delayTime);
+    break;
   case 0010:
     Serial.println("Detected wall in front at a left angle. Turn left!");
     turnLeft(speed);
     delay(delayTime);
+    break;
   case 0011:
     Serial.println("Dectected wall in front with both side wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
+    break;
   case 0100:
     Serial.println("Dectected left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
+    break;
   case 0101:
     Serial.println("Dectected too close to right wall. Turn left a bit!");
     turnLeft(speed);
     delay(100);
+    break;
   case 0110:
     Serial.println("Detected wall in front at a right angle but too close to right wall. Turn right a bit then left!");
     turnRight(speed);
     delay(200);
     turnLeft(speed);
     delay(delayTime);
+    break;
   case 0111:
     Serial.println("Detected wall in front and left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
+    break;
   case 1000:
     Serial.println("Detected left wall close and in front open. Go forward!");
     goForward(speed);
     delay(delayTime);
+    break;
   case 1001:
     Serial.println("Detected wall in front at a left angle but too close to left wall. Turn left a bit then right!");
     turnLeft(speed);
     delay(200);
     turnRight(speed);
     delay(delayTime);
+    break;
   case 1010:
     Serial.println("Detected too close to left wall. Turn right a bit!");
     turnRight(speed);
     delay(100);
+    break;
   case 1011:
     Serial.println("Detected wall in front and right wall open. Turn right!");
     // turnAround();
     turnRight(speed);
     delay(delayTime);
+    break;
   case 1100:
     Serial.println("Go forward!");
     goForward(speed);
     delay(delayTime);
+    break;
   case 1101:
     Serial.println("Detected too close to right wall. Turn left a bit!");
     turnLeft(speed);
     delay(100);
+    break;
   case 1110:
     Serial.println("Detected too close to left wall. Turn right a bit!");
     turnRight(speed);
     delay(100);
+    break;
   case 1111:
     Serial.println("Detected dead end. Turn around!");
     turnAround();
     delay(delayTime);
-    default:
-      Serial.println("Default. Go forward");
+  default:
+    Serial.println("Default. Go forward");
     goForward(speed);
     delay(delayTime);
+    break;
   }
 }
 
