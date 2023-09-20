@@ -6,13 +6,13 @@ volatile int leftEnCount = 0;
 volatile int rightEnCount = 0;
 
 // Left Motor
-int enL = 3;
-int inL1 = 4;
-int inL2 = 5;
+int enL = 4;
+int inL1 = 5;
+int inL2 = 6;
 
 // Right motor
-int inR1 = 6;
-int inR2 = 7;
+int inR1 = 7;
+int inR2 = 8;
 int enR = 9;
 
 // IF sensor
@@ -34,10 +34,10 @@ void setup()
   pinMode(pinIR_FR, INPUT);
 
   // interrupt # 5, pin 18
-  attachInterrupt(5, leftEnISR, CHANGE); // Also LOW, RISING, FALLING
+  attachInterrupt(1, leftEnISR, CHANGE); // Also LOW, RISING, FALLING
 
   // interrupt # 4, pin 19
-  attachInterrupt(4, rightEnISR, CHANGE); // Also LOW, RISING, FALLING
+  attachInterrupt(0, rightEnISR, CHANGE); // Also LOW, RISING, FALLING
 
   // Set all the motor control pins to outputs
   pinMode(enR, OUTPUT);
@@ -103,13 +103,12 @@ void stop()
   digitalWrite(inL2, LOW);
 }
 
-void turnAround()
+void turnAround(int speed)
 {
   // Reset encoder counter
   rightEnCount = 0;
   leftEnCount = 0;
 
-  int speed = 100;
   // const int turnWeight = 2;
   analogWrite(enR, speed);
 
@@ -207,50 +206,51 @@ String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
 
 void action(String sensorValue)
 {
-  const int speed = 100;
+  const int speed = 200;
   const int delayTime = 500;
   const int value = sensorValue.toInt();
   switch (value)
   {
-  case 0:
+  case 0: //0000
     goForward(speed);
     delay(delayTime);
     Serial.println("Go forward!");
     break;
-  case 1:
+
+  case 1: //0001
     Serial.println("Detected wall in front at a right angle. Turn left!");
     // goForward(speed);
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 10:
+  case 10: //0010
     Serial.println("Detected wall in front at a left angle. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 11:
+  case 11: //0011
     Serial.println("Dectected wall in front with both side wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 100:
+  case 100: //0100
     Serial.println("Dectected left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 101:
+  case 101: //0101
     Serial.println("Dectected too close to right wall. Turn left a bit!");
-    turnLeft(speed);
-    delay(100);
+    turnLeft(120);
+    delay(300);
     break;
-  case 110:
+  case 110: //0110
     Serial.println("Detected wall in front at a right angle but too close to right wall. Turn right a bit then left!");
     turnRight(speed);
     delay(200);
     turnLeft(speed);
     delay(delayTime);
     break;
-  case 111:
+  case 111: //0111
     Serial.println("Detected wall in front and left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
@@ -279,7 +279,7 @@ void action(String sensorValue)
     delay(delayTime);
     break;
   case 1100:
-    Serial.println("Go forward!");
+    Serial.println("Detected both side wall. Go forward!");
     goForward(speed);
     delay(delayTime);
     break;
@@ -295,8 +295,9 @@ void action(String sensorValue)
     break;
   case 1111:
     Serial.println("Detected dead end. Turn around!");
-    turnAround();
+    turnAround(speed);
     delay(delayTime);
+    break;
   default:
     Serial.println("Default. Go forward");
     goForward(speed);
