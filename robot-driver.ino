@@ -149,7 +149,7 @@ void turnRight(int speed)
   leftEnCount = 0;
 
   // int speed = 50;
-  const int turnWeight = 3;
+  const int turnWeight = 2;
   if (speed >= 0)
   {
   analogWrite(enR, speed);
@@ -182,7 +182,7 @@ void turnLeft(int speed)
   leftEnCount = 0;
 
   // int speed = 50;
-  const int turnWeight = 3;
+  const int turnWeight = 2;
   if (speed >= 0)
   {
 
@@ -256,7 +256,8 @@ String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
 void action(String sensorValue)
 {
   const int speed = 200;
-  const int delayTime = 400;
+  const int delayTime = 200;
+  const int delayTurn = 400;
   const int value = sensorValue.toInt();
   switch (value)
   {
@@ -269,16 +270,22 @@ void action(String sensorValue)
   case 1: // 0001
     Serial.println("Detected wall in front at a right angle. Turn left!");
     // goForward(speed);
+    goBackward(speed);
+    delay(delayTime);
     turnLeft(speed);
     delay(delayTime);
     break;
   case 10: // 0010
     Serial.println("Detected wall in front at a left angle. Turn left!");
-    turnLeft(speed);
+    goBackward(speed);
+    delay(delayTime);
+    turnRight(speed);
     delay(delayTime);
     break;
   case 11: // 0011
     Serial.println("Dectected wall in front with both side wall open. Turn left!");
+    goBackward(speed);
+    delay(delayTime);
     turnLeft(speed);
     delay(delayTime);
     break;
@@ -286,11 +293,15 @@ void action(String sensorValue)
     Serial.println("Dectected left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
+    goForward(speed);
+    delay(delayTime);
     break;
   case 101: // 0101
     Serial.println("Dectected too close to right wall. Turn left a bit!");
+    goBackward(speed);
+    delay(delayTime);
     turnLeft(speed);
-    delay(300);
+    delay(400);
     break;
   case 110: // 0110
     Serial.println("Detected wall in front at a right angle but too close to right wall. Turn right backward a bit!");
@@ -318,16 +329,18 @@ void action(String sensorValue)
     break;
   case 1010:
     Serial.println("Detected too close to left wall. Turn right a bit!");
+    goBackward(speed);
+    delay(delayTime);
     turnRight(speed);
-    delay(100);
+    delay(400);
     break;
   case 1011:
     Serial.println("Detected wall in front and left wall. Go back a bit!");
     // turnAround();
-    // turnRight(speed);
-    // delay(delayTime);
     goBackward(speed);
     delay(300);
+    turnRight(speed);
+    delay(delayTime);
     break;
   case 1100:
     Serial.println("Detected both side wall. Go forward!");
@@ -341,6 +354,8 @@ void action(String sensorValue)
     break;
   case 1110:
     Serial.println("Detected too close to left wall. Turn right a bit!");
+    goBackward(speed);
+    delay(delayTime);
     turnRight(speed);
     delay(200);
     break;
