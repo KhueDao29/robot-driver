@@ -128,18 +128,35 @@ void turnAround(int speed)
   rightEnCount = 0;
   leftEnCount = 0;
 
-  // const int turnWeight = 2;
-  analogWrite(enR, speed);
+  if (speed >= 0)
+  {
+    // const int turnWeight = 2;
+    analogWrite(enR, speed);
 
-  // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
-  // analogWrite(enL, motor_L_speed);
-  analogWrite(enL, speed);
+    // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
+    // analogWrite(enL, motor_L_speed);
+    analogWrite(enL, speed);
 
-  // Turn on motor A & B
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, HIGH);
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, HIGH);
+    // Turn on motor A & B
+    digitalWrite(inL1, LOW);
+    digitalWrite(inL2, HIGH);
+    digitalWrite(inR1, LOW);
+    digitalWrite(inR2, HIGH);
+  }
+  else
+  {
+    analogWrite(enR, -speed);
+
+    // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
+    // analogWrite(enL, motor_L_speed);
+    analogWrite(enL, -speed);
+
+    // Turn on motor A & B
+    digitalWrite(inL1, HIGH);
+    digitalWrite(inL2, LOW);
+    digitalWrite(inR1, HIGH);
+    digitalWrite(inR2, LOW);
+  }
 }
 
 void turnRight(int speed)
@@ -152,26 +169,29 @@ void turnRight(int speed)
   const int turnWeight = 3;
   if (speed >= 0)
   {
-  analogWrite(enR, speed);
+    analogWrite(enR, speed);
 
-  int motor_L_speed = turnWeight * speed + K * (turnWeight * rightEnCount - leftEnCount);
-  analogWrite(enL, motor_L_speed);
+    int motor_L_speed = turnWeight * speed + K * (turnWeight * rightEnCount - leftEnCount);
+    analogWrite(enL, motor_L_speed);
 
-  // Turn on motor A & B
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, HIGH);
-  digitalWrite(inR1, HIGH);
-  digitalWrite(inR2, LOW);} else {
+    // Turn on motor A & B
+    digitalWrite(inL1, LOW);
+    digitalWrite(inL2, HIGH);
+    digitalWrite(inR1, HIGH);
+    digitalWrite(inR2, LOW);
+  }
+  else
+  {
     analogWrite(enR, -speed);
 
-  int motor_L_speed = turnWeight * -speed + K * (turnWeight * rightEnCount - leftEnCount);
-  analogWrite(enL, motor_L_speed);
+    int motor_L_speed = turnWeight * -speed + K * (turnWeight * rightEnCount - leftEnCount);
+    analogWrite(enL, motor_L_speed);
 
-  // Turn on motor A & B
-  digitalWrite(inL1, HIGH);
-  digitalWrite(inL2, LOW);
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, HIGH);
+    // Turn on motor A & B
+    digitalWrite(inL1, HIGH);
+    digitalWrite(inL2, LOW);
+    digitalWrite(inR1, LOW);
+    digitalWrite(inR2, HIGH);
   }
 }
 
@@ -256,7 +276,8 @@ String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
 void action(String sensorValue)
 {
   const int speed = 200;
-  const int delayTime = 400;
+  const int delayTime = 300;
+  const int delayTurn = 400;
   const int value = sensorValue.toInt();
   switch (value)
   {
@@ -301,8 +322,14 @@ void action(String sensorValue)
     Serial.println("Detected wall in front too close and right wall. Go back a bit!");
     goBackward(speed);
     delay(300);
-    // turnLeft(speed);
-    // delay(delayTime);
+    stop();
+    delay(100);
+    turnAround(speed);
+    delay(200);
+    stop();
+    delay(100);
+    goForward(speed);
+    delay(2*delayTime);
     break;
   case 1000:
     Serial.println("Detected left wall close and in front open. Go forward!");
@@ -319,15 +346,17 @@ void action(String sensorValue)
   case 1010:
     Serial.println("Detected too close to left wall. Turn right a bit!");
     turnRight(speed);
-    delay(100);
+    delay(400);
     break;
   case 1011:
-    Serial.println("Detected wall in front and left wall. Go back a bit!");
+    Serial.println("Detected wall in front and left wall. Go back a bit then turn right!");
     // turnAround();
     // turnRight(speed);
     // delay(delayTime);
     goBackward(speed);
     delay(300);
+    turnRight(speed);
+    delay(delayTime);
     break;
   case 1100:
     Serial.println("Detected both side wall. Go forward!");
