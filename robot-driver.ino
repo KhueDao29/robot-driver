@@ -163,14 +163,13 @@ void turnAround(int speed)
   }
 }
 
-void turnRight(int speed)
+void turnRight(int speed, int degree = 90)
 {
   turnAround(-speed);
-  delay(delayTurn);
+  delay(int(delayTurn * degree / 90));
   stop();
-  delayMicroseconds(5);
+  delay(1000);
   goForward(speed);
-  delay(2 * delayTime);
   // // Reset encoder counter
   // rightEnCount = 0;
   // leftEnCount = 0;
@@ -205,14 +204,13 @@ void turnRight(int speed)
   // }
 }
 
-void turnLeft(int speed)
+void turnLeft(int speed, int degree = 90)
 {
   turnAround(speed);
-  delay(delayTurn);
+  delay(int(delayTurn * degree / 90));
   stop();
-  delayMicroseconds(5);
+  delay(1000);
   goForward(speed);
-  delay(2 * delayTime);
   // // Reset encoder counter
   // rightEnCount = 0;
   // leftEnCount = 0;
@@ -295,14 +293,13 @@ void action(String sensorValue)
   switch (value)
   {
   case 0: // 0000
+    Serial.println("Go forward!");
     goForward(speed);
     delay(delayTime);
-    Serial.println("Go forward!");
     break;
 
   case 1: // 0001
     Serial.println("Detected wall in front at a right angle. Turn left!");
-    // goForward(speed);
     turnLeft(speed);
     delay(delayTime);
     break;
@@ -332,9 +329,9 @@ void action(String sensorValue)
     break;
 
   case 110: // 0110
-    Serial.println("Detected wall in front at a right angle but too close to right wall. Turn right backward a bit!");
-    turnRight(-speed);
-    delay(200);
+    Serial.println("Detected wall in front at a right angle but too close to right wall. Turn left 135 degrees!");
+    turnLeft(speed, 135);
+    delay(delayTime);
     break;
 
   case 111: // 0111
@@ -353,11 +350,9 @@ void action(String sensorValue)
     break;
 
   case 1001:
-    Serial.println("Detected wall in front at a left angle but too close to left wall. Turn left backward a bit!");
-    turnLeft(-speed);
-    delay(200);
-    // turnRight(speed);
-    // delay(delayTime);
+    Serial.println("Detected wall in front at a left angle but too close to left wall. Turn left 45 degrees!");
+    turnLeft(speed, 45);
+    delay(delayTime);
     break;
 
   case 1010:
@@ -398,7 +393,7 @@ void action(String sensorValue)
   case 1111:
     Serial.println("Detected dead end. Turn around!");
     turnAround(speed);
-    delay(2*delayTurn);
+    delay(2 * delayTurn);
     break;
 
   default:
