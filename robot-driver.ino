@@ -329,11 +329,8 @@ void action(String sensorValue)
     break;
 
   case 101: // 0101
-    Serial.println("Dectected too close to right wall. Turn left a bit!");
-    goBackward(speed);
-    delay(delayTime);
-    turnLeft(speed);
-    delay(400);
+    Serial.println("Dectected too close to right wall. Turn left 45 degrees!");
+    turnLeft(speed, 45);
     break;
 
   case 110: // 0110
@@ -343,12 +340,13 @@ void action(String sensorValue)
     break;
 
   case 111: // 0111
-    Serial.println("Detected wall in front too close and right wall. Go back a bit!");
+    Serial.println("Detected wall in front too close and right wall. Go back a bit then turn left!");
     goBackward(speed);
     delay(300);
     stop();
-    delayMicroseconds(5);
+    delay(1000);
     turnLeft(speed);
+    delay(delayTime);
     break;
 
   case 1000:
@@ -364,18 +362,16 @@ void action(String sensorValue)
     break;
 
   case 1010:
-    Serial.println("Detected too close to left wall. Turn right a bit!");
-    goBackward(speed);
-    delay(delayTime);
-    turnRight(speed);
-    delay(400);
+    Serial.println("Detected too close to left wall. Turn right 45 degrees!");
+    turnRight(speed, 45);
     break;
 
   case 1011:
     Serial.println("Detected wall in front and left wall. Go back a bit then turn right!");
-    // turnAround();
     goBackward(speed);
     delay(300);
+    stop();
+    delay(1000);
     turnRight(speed);
     delay(delayTime);
     break;
@@ -387,17 +383,13 @@ void action(String sensorValue)
     break;
 
   case 1101:
-    Serial.println("Detected too close to right wall. Turn left a bit!");
-    turnLeft(speed);
-    delay(200);
+    Serial.println("Detected too close to right wall. Turn left 45 degrees!");
+    turnLeft(speed, 45);
     break;
 
   case 1110:
-    Serial.println("Detected too close to left wall. Turn right a bit!");
-    goBackward(speed);
-    delay(delayTime);
-    turnRight(speed);
-    delay(200);
+    Serial.println("Detected too close to left wall. Turn right 45 degrees!");
+    turnRight(speed, 45);
     break;
 
   case 1111:
