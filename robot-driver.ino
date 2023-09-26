@@ -332,7 +332,7 @@ void action(String sensorValue, int sensorF)
     delay(150);
     stop();
     delay(1000);
-    turnRight(speed, 45);
+    turnRight(speed, 45, sensorF);
     delay(delayTime);
     break;
 
