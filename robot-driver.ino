@@ -20,7 +20,7 @@ int pinIR_L = 10;  // left
 int pinIR_FL = 11; // front left
 int pinIR_R = 12;  // right
 int pinIR_FR = 13; // front right
-int pinIR_F = A0; // center front
+int pinIR_F = A0;  // center front
 
 const int K = 30; // adjust K for smooth response
 
@@ -251,52 +251,17 @@ void turnLeft(int speed, int degree = 90)
 
 String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR, int sensorF)
 {
-  if (sensorL == HIGH)
+  String value = "";
+  int sensors[5] = {sensorL, sensorR, sensorFL, sensorFR, sensorF};
+  for (int i = 0; i < 5; i++)
   {
-    sensorL = 0;
+    if (sensors[i] == HIGH) {
+      value += "0";
+    } else {
+      value += "1";
+    }
   }
-  else
-  {
-    sensorL = 1;
-  }
-
-  if (sensorR == HIGH)
-  {
-    sensorR = 0;
-  }
-  else
-  {
-    sensorR = 1;
-  }
-
-  if (sensorFL == HIGH)
-  {
-    sensorFL = 0;
-  }
-  else
-  {
-    sensorFL = 1;
-  }
-
-  if (sensorFR == HIGH)
-  {
-    sensorFR = 0;
-  }
-  else
-  {
-    sensorFR = 1;
-  }
-
-  if (sensorF == HIGH)
-  {
-    sensorF = 0;
-  }
-  else
-  {
-    sensorF = 1;
-  }
-
-  return String(sensorL) + String(sensorR) + String(sensorFL) + String(sensorFR) + String(sensorF);
+  return value;
 }
 
 void action(String sensorValue)
@@ -403,7 +368,7 @@ void action(String sensorValue)
     delay(delayTime);
     break;
 
-  case 1111: //01111
+  case 1111: // 01111
     Serial.println("Too close to right corner. Go back a bit!");
     goBackward(speed);
     delay(delayTime);
@@ -483,7 +448,7 @@ void action(String sensorValue)
     Serial.println("Detected too close to right wall. Turn left 45 degrees!");
     turnLeft(speed, 45);
     break;
-  
+
   case 11011:
     Serial.println("Detected dead end. Turn around!");
     turnAround(speed);
