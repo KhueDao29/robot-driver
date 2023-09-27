@@ -20,6 +20,7 @@ int pinIR_L = 10;  // left
 int pinIR_FL = 11; // front left
 int pinIR_R = 12;  // right
 int pinIR_FR = 13; // front right
+int pinIR_F = A0; // center front
 
 const int K = 30; // adjust K for smooth response
 
@@ -36,6 +37,7 @@ void setup()
   pinMode(pinIR_R, INPUT);
   pinMode(pinIR_FL, INPUT);
   pinMode(pinIR_FR, INPUT);
+  pinMode(pinIR_F, INPUT);
 
   // interrupt # 5, pin 18
   attachInterrupt(1, leftEnISR, CHANGE); // Also LOW, RISING, FALLING
@@ -66,13 +68,14 @@ void loop()
   int sensorR = digitalRead(pinIR_R);
   int sensorFL = digitalRead(pinIR_FL);
   int sensorFR = digitalRead(pinIR_FR);
+  int sensorF = digitalRead(pinIR_F);
 
   // Serial.println("sensor L = " + sensorL);
   // Serial.println("sensor R = " + sensorR);
   // Serial.println("sensor FL = " + sensorFL);
   // Serial.println("sensor FR = " + sensorFR);
 
-  String sensorValue = readSensor(sensorL, sensorR, sensorFL, sensorFR);
+  String sensorValue = readSensor(sensorL, sensorR, sensorFL, sensorFR, sensorF);
   Serial.print(sensorValue + " ");
   action(sensorValue);
   stop();
@@ -246,7 +249,7 @@ void turnLeft(int speed, int degree = 90)
   // }
 }
 
-String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
+String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR, int sensorF)
 {
   if (sensorL == HIGH)
   {
@@ -284,7 +287,16 @@ String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
     sensorFR = 1;
   }
 
-  return String(sensorL) + String(sensorR) + String(sensorFL) + String(sensorFR);
+  if (sensorF == HIGH)
+  {
+    sensorF = 0;
+  }
+  else
+  {
+    sensorF = 1;
+  }
+
+  return String(sensorL) + String(sensorR) + String(sensorFL) + String(sensorFR) + String(sensorF);
 }
 
 void action(String sensorValue)
@@ -292,81 +304,150 @@ void action(String sensorValue)
   const int value = sensorValue.toInt();
   switch (value)
   {
-  case 0: // 0000
+  case 0: // 00000
     Serial.println("Go forward!");
     goForward(speed);
     delay(delayTime);
     break;
 
-  case 1: // 0001
-    Serial.println("Detected wall in front at a right angle. Turn left!");
+  case 1: // 00001
+    Serial.println("Stuck at wall in front. Go back, then turn left!");
+    goBackward(speed);
+    delay(200);
+    stop();
+    delay(1000);
+    turnLeft(speed, 45);
+    break;
+
+  case 10: // 00010
+    Serial.println("Detected wall in front at a left angle. Turn left 45 degrees!");
+    turnLeft(speed, 45);
+    delay(delayTime);
+    break;
+
+  case 11: // 00011
+    Serial.println("Detected wall in front at a left angle (< 45 degrees). Turn right 45 degrees!");
+    turnRight(speed, 45);
+    delay(delayTime);
+    break;
+
+  case 100: // 00100
+    Serial.println("Detected wall in front at a right angle. Go back, then turn left!");
+    goBackward(speed);
+    delay(delayTime);
     turnLeft(speed);
     delay(delayTime);
     break;
 
-  case 10: // 0010
-    Serial.println("Detected wall in front at a left angle. Turn left!");
-    goBackward(speed);
-    delay(delayTime);
-    turnRight(speed);
+  case 101: // 00101
+    Serial.println("Detected wall in front at a right angle (< 45 degrees). Turn left 45 degrees!");
+    turnLeft(speed, 45);
     delay(delayTime);
     break;
 
-  case 11: // 0011
-    Serial.println("Dectected wall in front with both side wall open. Turn left!");
-    goBackward(speed);
-    delay(delayTime);
+  case 110: // 00110
+    Serial.println("Detected wall in front with both side wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
 
-  case 100: // 0100
-    Serial.println("Dectected left wall open. Turn left!");
+  case 111: // 00111
+    Serial.println("Too close to wall. Go back a bit!");
+    goBackward(speed);
+    delay(200);
+    break;
+
+  case 1000: // 01000
+    Serial.println("Detected left wall open. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     goForward(speed);
     delay(delayTime);
     break;
 
-  case 101: // 0101
-    Serial.println("Dectected too close to right wall. Turn left 45 degrees!");
+  case 1001: // 01001
+    Serial.println("Stuck at left angle. Go back, then turn left 45 degrees!");
+    goBackward(speed);
+    delay(200);
+    stop();
+    delay(1000);
+    turnRight(speed, 45);
+    delay(delayTime);
+    break;
+
+  case 1010: // 01010
+    Serial.println("Detected too close to right wall. Turn left 45 degrees!");
     turnLeft(speed, 45);
     break;
 
-  case 110: // 0110
+  case 1011: // 01011
+    Serial.println("Too close to right corner. Go back a bit!");
+    goBackward(speed);
+    delay(200);
+    break;
+
+  case 1100: // 01100
     Serial.println("Detected wall in front at a right angle but too close to right wall. Turn left 135 degrees!");
     turnLeft(speed, 135);
     delay(delayTime);
     break;
 
-  case 111: // 0111
-    Serial.println("Detected wall in front too close and right wall. Go back a bit then turn left!");
-    goBackward(speed);
-    delay(300);
-    stop();
-    delay(1000);
+  case 1101: // 01101
+    Serial.println("Detected wall in front at right angle (< 45 degrees) and end of right wall. Turn left 45 degrees!");
+    turnLeft(speed, 45);
+    break;
+
+  case 1110: // 01110
+    Serial.println("Detected at right corner. Turn left!");
     turnLeft(speed);
     delay(delayTime);
     break;
 
-  case 1000:
+  case 1111: //01111
+    Serial.println("Too close to right corner. Go back a bit!");
+    goBackward(speed);
+    delay(delayTime);
+    break;
+
+  case 10000:
     Serial.println("Detected left wall close and in front open. Go forward!");
     goForward(speed);
     delay(delayTime);
     break;
 
-  case 1001:
+  case 10001:
+    Serial.println("Stuck at right angle. Go back, then turn right 45 degrees!");
+    goBackward(speed);
+    delay(200);
+    stop();
+    delay(1000);
+    turnRight(speed, 45);
+    delay(delayTime);
+    break;
+
+  case 10010:
     Serial.println("Detected wall in front at a left angle but too close to left wall. Turn left 45 degrees!");
     turnLeft(speed, 45);
     delay(delayTime);
     break;
 
-  case 1010:
+  case 10011:
+    Serial.println("Detected wall in front at left angle (< 45 degrees) and end of left wall. Turn right 45 degrees!");
+    turnRight(speed, 45);
+    break;
+
+  case 10100:
     Serial.println("Detected too close to left wall. Turn right 45 degrees!");
     turnRight(speed, 45);
     break;
 
-  case 1011:
+  case 10101:
+    Serial.println("Too close to left corner. Go back a bit!");
+    goBackward(speed);
+    delay(200);
+    break;
+
+  case 10110:
     Serial.println("Detected wall in front and left wall. Go back a bit then turn right!");
     goBackward(speed);
     delay(300);
@@ -376,23 +457,57 @@ void action(String sensorValue)
     delay(delayTime);
     break;
 
-  case 1100:
+  case 10111:
+    Serial.println("Detected wall in front and left wall. Go back a bit then turn right!");
+    goBackward(speed);
+    delay(delayTime);
+    break;
+
+  case 11000:
     Serial.println("Detected both side wall. Go forward!");
     goForward(speed);
     delay(delayTime);
     break;
 
-  case 1101:
+  case 11001:
+    Serial.println("Stuck at wall. Go back, then turn left 45 degrees!");
+    goBackward(speed);
+    delay(delayTime);
+    stop();
+    delay(1000);
+    turnLeft(speed, 45);
+    delay(delayTime);
+    break;
+
+  case 11010:
     Serial.println("Detected too close to right wall. Turn left 45 degrees!");
     turnLeft(speed, 45);
     break;
+  
+  case 11011:
+    Serial.println("Detected dead end. Turn around!");
+    turnAround(speed);
+    delay(2 * delayTurn);
+    break;
 
-  case 1110:
+  case 11100:
     Serial.println("Detected too close to left wall. Turn right 45 degrees!");
     turnRight(speed, 45);
     break;
 
-  case 1111:
+  case 11101:
+    Serial.println("Detected dead end. Turn around!");
+    turnAround(speed);
+    delay(2 * delayTurn);
+    break;
+
+  case 11110:
+    Serial.println("Detected dead end. Turn around!");
+    turnAround(speed);
+    delay(2 * delayTurn);
+    break;
+
+  case 11111:
     Serial.println("Detected dead end. Turn around!");
     turnAround(speed);
     delay(2 * delayTurn);
