@@ -26,7 +26,7 @@ const int K = 20; // adjust K for smooth response
 
 const int speed = 200;
 const int delayTime = 300;
-const long delayTurn = 180L;
+const long delayTurn = 200L;
 
 void setup()
 {
@@ -286,7 +286,7 @@ void action(String sensorValue)
     delay(delayTime/2);
     stop();
     delay(1000);
-    turnRight(speed, 45, 0);
+    turnLeft(speed, 45, 0);
     break;
 
   case 10: // 00010
@@ -338,19 +338,22 @@ void action(String sensorValue)
 
   case 1000: // 01000
     Serial.println("Detected left wall open. Turn left 45 degrees x2!");
-    turnLeft(speed, 40);
+    turnLeft(speed, 45);
     stop();
     delay(1000);
-    turnLeft(speed, 40, delayTime*3/2);
+    turnLeft(speed, 45, delayTime*3/2);
     break;
 
   case 1001: // 01001
     Serial.println("Stuck at left angle. Go back a bit!");
     goBackward(speed);
     delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    // turnRight(speed, 45);
+    stop();
+    delay(1000);
+    turnLeft(speed, 45);
+    stop();
+    delay(1000);
+    turnLeft(speed, 45, delayTime*3/2);
     break;
 
   case 1010: // 01010
@@ -362,10 +365,7 @@ void action(String sensorValue)
     turnLeft(speed, 35, delayTime/2);
     stop();
     delay(1000);
-    turnLeft(speed, 40);
-    stop();
-    delay(1000);
-    turnLeft(speed, 40, delayTime*2);
+    turnLeft(speed, 80, delayTime*2);
     break;
 
   case 1011: // 01011
@@ -374,10 +374,7 @@ void action(String sensorValue)
     delay(delayTime/2);
     stop();
     delay(1000);
-    turnLeft(speed, 45);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, delayTime*2);
+    turnLeft(speed, 80, delayTime*2);
     break;
 
   case 1100: // 01100
@@ -460,10 +457,7 @@ void action(String sensorValue)
     delay(delayTime/2);
     stop();
     delay(1000);
-    turnRight(speed, 40);
-    stop();
-    delay(1000);
-    turnRight(speed, 40, delayTime*3/2);
+    turnRight(speed, 80, delayTime*2);
     break;
 
   case 10110:
