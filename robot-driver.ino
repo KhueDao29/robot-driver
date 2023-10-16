@@ -1,140 +1,132 @@
+#include <QTRSensors.h>
 
+#define MotFwdL 9   // Motor Forward pin left
+#define MotRevL 10  // Motor Reverse pin left
 
-#define MotFwdL 9 // Motor Forward pin left
-#define MotRevL 10 // Motor Reverse pin left
+#define MotFwdR 11  // Motor Forward pin right
+#define MotRevR 12  // Motor Reverse pin right
 
-#define MotFwdR 11 // Motor Forward pin right
-#define MotRevR 12 // Motor Reverse pin right
+int encoderPin1 = 20;  // int. 2
+int encoderPin2 = 21;  // int. 3
 
+int encoderPin3 = 18;  // int. 4
+int encoderPin4 = 19;  // int. 5
 
-int encoderPin1 = 20; // Encoder Output 'A' must connected with intreput pin of arduino.
-int encoderPin2 = 21; // Encoder Otput 'B' must connected with intreput pin of arduino.
-int encoderPin3 = 18; // 10; //Encoder Output 'A' must connected with intreput pin of arduino.
-int encoderPin4 = 19; // 11; //Encoder Otput 'B' must connected with intreput pin of arduino.
+int enL = 8;
+int enR = 13;
 
-volatile int lastEncodedL = 0;   // Here updated value of encoder store.
-volatile long encoderValueL = 0; // Raw encoder value
+int P;
+int I;
+int D;
 
-volatile int lastEncodedR = 0;   // Here updated value of encoder store.
-volatile long encoderValueR = 0; // Raw encoder value
+float Kp = 0.05;
+float Ki = 0.00001;
+float Kd = 0.8;
 
-const int K = 20; // adjust K for smooth response
+int lastError = 0;
 
-void setup()
-{
+QTRSensors qtr;
 
+const uint8_t SensorCount = 5;
+uint16_t sensorValues[SensorCount];
+
+void setup() {
   pinMode(MotFwdL, OUTPUT);
   pinMode(MotRevL, OUTPUT);
   pinMode(MotFwdR, OUTPUT);
   pinMode(MotRevR, OUTPUT);
-  Serial.begin(9600); // initialize serial comunication
-
+  pinMode(enR, OUTPUT);
+  pinMode(enL, OUTPUT);
   pinMode(encoderPin1, INPUT_PULLUP);
   pinMode(encoderPin2, INPUT_PULLUP);
   pinMode(encoderPin3, INPUT_PULLUP);
   pinMode(encoderPin4, INPUT_PULLUP);
+  digitalWrite(encoderPin1, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin2, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin3, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin4, HIGH);  // turn pullup resistor on
+  Serial.begin(9600);
 
-  digitalWrite(encoderPin1, HIGH); // turn pullup resistor on
-  digitalWrite(encoderPin2, HIGH); // turn pullup resistor on
-  digitalWrite(encoderPin3, HIGH); // turn pullup resistor on
-  digitalWrite(encoderPin4, HIGH); // turn pullup resistor on
+  qtr.setTypeRC();
+  qtr.setSensorPins((const uint8_t[]){ A2, A3, A4, A5, A6 }, SensorCount);
 
-  // call updateEncoder() when any high/low changed seen
-  // on interrupt 0 (pin 2), or interrupt 1 (pin 3)
-  attachInterrupt(2, updateEncoderL, CHANGE);
-  attachInterrupt(3, updateEncoderL, CHANGE);
-  attachInterrupt(4, updateEncoderR, CHANGE);
-  attachInterrupt(5, updateEncoderR, CHANGE);
+  Serial.println("Calibrating...");
+  for (uint16_t i = 0; i < 400; i++) {
+    qtr.calibrate();
+  }
+
+  // print the calibration minimum values measured when emitters were on
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.minimum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+
+  // print the calibration maximum values measured when emitters were on
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.maximum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+  Serial.println();
+  delay(1000);
 }
 
-void loop()
-{
+void loop() {
+  PID_control();
+}
+
+void PID_control() {
+  uint16_t positionLine = qtr.readLineBlack(sensorValues);
+  Serial.print("Sensors: ");
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+  }
+  Serial.print("Position: ");
+  Serial.print(positionLine);
+  Serial.print('\t');
+
+  int error = 2000 - positionLine;
+
+  P = error;
+  I = error + I;
+  D = error - lastError;
+  lastError = error;
+
+  int motorSpeedChange = P * Kp + I * Ki + D * Kd;
+  Serial.print("Error: ");
+  Serial.print(motorSpeedChange);
+  Serial.print("\t");
+
+  int motorSpeedA = 200 - motorSpeedChange;
+  int motorSpeedB = 200 + motorSpeedChange;
+  Serial.print("Speed Left:");
+  Serial.print(motorSpeedA);
+  Serial.print(" ");
+  Serial.print("Speed Right:");
+  Serial.println(motorSpeedB);
+
+  if (motorSpeedA > 255) {
+    motorSpeedA = 255;
+  }
+  if (motorSpeedB > 255) {
+    motorSpeedB = 255;
+  }
+  if (motorSpeedA < 0) {
+    motorSpeedA = 0;
+  }
+  if (motorSpeedB < 0) {
+    motorSpeedB = 0;
+  }
+  forward_movement(motorSpeedA, motorSpeedB);
+}
+
+void forward_movement(int speedA, int speedB) {
   digitalWrite(MotFwdL, HIGH);
   digitalWrite(MotRevL, LOW);
   digitalWrite(MotFwdR, HIGH);
   digitalWrite(MotRevR, LOW);
-  Serial.print("Forward  ");
-  Serial.print("Left: ");
-  Serial.print(encoderValueL);
-  Serial.print("  ");
-  Serial.print("Right: ");
-  Serial.println(encoderValueR);
-
-  // for (int i = 0; i <= 500; i++){
-  //   digitalWrite(MotFwd, LOW);
-  //   digitalWrite(MotRev, HIGH);
-  //   digitalWrite(MotFwdR, LOW);
-  //   digitalWrite(MotRevR, HIGH);
-  //   Serial.print("Forward  ");
-  //   Serial.println(encoderValue);
-  // }
-
-  // delay(1000);
-
-  // for (int i = 0; i <= 500; i++){
-  //   digitalWrite(MotFwdL, HIGH);
-  //   digitalWrite(MotRevL, LOW);
-  //   digitalWrite(MotFwdR, HIGH);
-  //   digitalWrite(MotRevR, LOW);
-  //   Serial.print("Reverse  ");
-  //   Serial.println(encoderValue);
-  // }
-}
-
-// function to make robot move forward
-// Parameter:
-//   speed: speed of the robot
-
-void moveForward(int speed)
-{
-  // Reset encoder counter
-  lastEncodedL = 0;  // Here updated value of encoder store.
-  encoderValueL = 0; // Raw encoder value
-
-  lastEncodedR = 0;  // Here updated value of encoder store.
-  encoderValueR = 0; // Raw encoder value
-
-  // For PWM maximum possible values are 0 to 255
-  analogWrite(encoderValueR, speed);
-
-  int motor_L_speed = speed + K * (encoderValueR - encoderValueL);
-  analogWrite(encoderValueL, motor_L_speed);
-
-  // Turn on motor A & B
-  digitalWrite(MotFwdL, LOW);
-  digitalWrite(MotRevL, HIGH);
-  digitalWrite(MotFwdR, LOW);
-  digitalWrite(MotRevR, HIGH);
-  Serial.print("Forward  ");
-  Serial.println(encoderValueR);
-}
-
-void updateEncoderL()
-{
-  int MSBL = digitalRead(encoderPin1); // MSB = most significant bit
-  int LSBL = digitalRead(encoderPin2); // LSB = least significant bit
-
-  int encodedL = (MSBL << 1) | LSBL;         // converting the 2 pin value to single number
-  int sumL = (lastEncodedL << 2) | encodedL; // adding it to the previous encoded value
-
-  if (sumL == 0b1101 || sumL == 0b0100 || sumL == 0b0010 || sumL == 0b1011)
-    encoderValueL--;
-  if (sumL == 0b1110 || sumL == 0b0111 || sumL == 0b0001 || sumL == 0b1000)
-    encoderValueL++;
-
-  lastEncodedL = encodedL; // store this value for next time
-}
-
-void updateEncoderR() {
-  int MSBR = digitalRead(encoderPin3); // MSB = most significant bit
-  int LSBR = digitalRead(encoderPin4); // LSB = least significant bit
-  int encodedR = (MSBR << 1) | LSBR;         // converting the 2 pin value to single number
-  int sumR = (lastEncodedR << 2) | encodedR; // adding it to the previous encoded value
-
-  if (sumR == 0b1101 || sumR == 0b0100 || sumR == 0b0010 || sumR == 0b1011)
-    encoderValueR--;
-  if (sumR == 0b1110 || sumR == 0b0111 || sumR == 0b0001 || sumR == 0b1000)
-    encoderValueR++;
-
-  lastEncodedR = encodedR; // store this value for next time
+  analogWrite(enL, speedA);
+  analogWrite(enR, speedB);
 }
