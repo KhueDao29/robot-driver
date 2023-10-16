@@ -1,570 +1,140 @@
-// Mega2560
-//  external interrupt int.0    int.1    int.2   int.3   int.4   int.5
-//  pin                  2         3      21      20      19      18
 
-volatile int leftEnCount = 0;
-volatile int rightEnCount = 0;
 
-// Left Motor
-int enL = 4;
-int inL1 = 5;
-int inL2 = 6;
+#define MotFwdL 9 // Motor Forward pin left
+#define MotRevL 10 // Motor Reverse pin left
 
-// Right motor
-int inR1 = 7;
-int inR2 = 8;
-int enR = 9;
+#define MotFwdR 11 // Motor Forward pin right
+#define MotRevR 12 // Motor Reverse pin right
 
-// IF sensor
-int pinIR_L = 10;  // left
-int pinIR_FL = 11; // front left
-int pinIR_R = 12;  // right
-int pinIR_FR = 13; // front right
-int pinIR_F = A0;  // center front
+
+int encoderPin1 = 20; // Encoder Output 'A' must connected with intreput pin of arduino.
+int encoderPin2 = 21; // Encoder Otput 'B' must connected with intreput pin of arduino.
+int encoderPin3 = 18; // 10; //Encoder Output 'A' must connected with intreput pin of arduino.
+int encoderPin4 = 19; // 11; //Encoder Otput 'B' must connected with intreput pin of arduino.
+
+volatile int lastEncodedL = 0;   // Here updated value of encoder store.
+volatile long encoderValueL = 0; // Raw encoder value
+
+volatile int lastEncodedR = 0;   // Here updated value of encoder store.
+volatile long encoderValueR = 0; // Raw encoder value
 
 const int K = 20; // adjust K for smooth response
 
-const int speed = 200;
-const int delayTime = 300;
-const long delayTurn = 200L;
-
 void setup()
 {
-  Serial.begin(9600);
 
-  // configure the IR pin as an input
-  pinMode(pinIR_L, INPUT);
-  pinMode(pinIR_R, INPUT);
-  pinMode(pinIR_FL, INPUT);
-  pinMode(pinIR_FR, INPUT);
-  pinMode(pinIR_F, INPUT);
+  pinMode(MotFwdL, OUTPUT);
+  pinMode(MotRevL, OUTPUT);
+  pinMode(MotFwdR, OUTPUT);
+  pinMode(MotRevR, OUTPUT);
+  Serial.begin(9600); // initialize serial comunication
 
-  // interrupt # 5, pin 18
-  attachInterrupt(1, leftEnISR, CHANGE); // Also LOW, RISING, FALLING
+  pinMode(encoderPin1, INPUT_PULLUP);
+  pinMode(encoderPin2, INPUT_PULLUP);
+  pinMode(encoderPin3, INPUT_PULLUP);
+  pinMode(encoderPin4, INPUT_PULLUP);
 
-  // interrupt # 4, pin 19
-  attachInterrupt(0, rightEnISR, CHANGE); // Also LOW, RISING, FALLING
+  digitalWrite(encoderPin1, HIGH); // turn pullup resistor on
+  digitalWrite(encoderPin2, HIGH); // turn pullup resistor on
+  digitalWrite(encoderPin3, HIGH); // turn pullup resistor on
+  digitalWrite(encoderPin4, HIGH); // turn pullup resistor on
 
-  // Set all the motor control pins to outputs
-  pinMode(enR, OUTPUT);
-  pinMode(enL, OUTPUT);
-  pinMode(inR1, OUTPUT);
-  pinMode(inR2, OUTPUT);
-  pinMode(inL1, OUTPUT);
-  pinMode(inL2, OUTPUT);
-
-  // Turn off motors - Initial state
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, LOW);
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, LOW);
+  // call updateEncoder() when any high/low changed seen
+  // on interrupt 0 (pin 2), or interrupt 1 (pin 3)
+  attachInterrupt(2, updateEncoderL, CHANGE);
+  attachInterrupt(3, updateEncoderL, CHANGE);
+  attachInterrupt(4, updateEncoderR, CHANGE);
+  attachInterrupt(5, updateEncoderR, CHANGE);
 }
 
 void loop()
 {
-  // Serial.println(leftEnCount);
-  // Serial.println(rightEnCount);
-  int sensorL = digitalRead(pinIR_L);
-  int sensorR = digitalRead(pinIR_R);
-  int sensorFL = digitalRead(pinIR_FL);
-  int sensorFR = digitalRead(pinIR_FR);
-  int sensorF = digitalRead(pinIR_F);
+  digitalWrite(MotFwdL, HIGH);
+  digitalWrite(MotRevL, LOW);
+  digitalWrite(MotFwdR, HIGH);
+  digitalWrite(MotRevR, LOW);
+  Serial.print("Forward  ");
+  Serial.print("Left: ");
+  Serial.print(encoderValueL);
+  Serial.print("  ");
+  Serial.print("Right: ");
+  Serial.println(encoderValueR);
 
-  // Serial.println("sensor L = " + sensorL);
-  // Serial.println("sensor R = " + sensorR);
-  // Serial.println("sensor FL = " + sensorFL);
-  // Serial.println("sensor FR = " + sensorFR);
+  // for (int i = 0; i <= 500; i++){
+  //   digitalWrite(MotFwd, LOW);
+  //   digitalWrite(MotRev, HIGH);
+  //   digitalWrite(MotFwdR, LOW);
+  //   digitalWrite(MotRevR, HIGH);
+  //   Serial.print("Forward  ");
+  //   Serial.println(encoderValue);
+  // }
 
-  String sensorValue = readSensor(sensorL, sensorR, sensorFL, sensorFR, sensorF);
-  Serial.print(sensorValue + " ");
-  action(sensorValue);
-  stop();
-  delay(1000);
+  // delay(1000);
+
+  // for (int i = 0; i <= 500; i++){
+  //   digitalWrite(MotFwdL, HIGH);
+  //   digitalWrite(MotRevL, LOW);
+  //   digitalWrite(MotFwdR, HIGH);
+  //   digitalWrite(MotRevR, LOW);
+  //   Serial.print("Reverse  ");
+  //   Serial.println(encoderValue);
+  // }
 }
 
-void goForward(int speed)
+// function to make robot move forward
+// Parameter:
+//   speed: speed of the robot
+
+void moveForward(int speed)
 {
   // Reset encoder counter
-  rightEnCount = 0;
-  leftEnCount = 0;
+  lastEncodedL = 0;  // Here updated value of encoder store.
+  encoderValueL = 0; // Raw encoder value
+
+  lastEncodedR = 0;  // Here updated value of encoder store.
+  encoderValueR = 0; // Raw encoder value
 
   // For PWM maximum possible values are 0 to 255
-  analogWrite(enR, speed);
+  analogWrite(encoderValueR, speed);
 
-  int motor_L_speed = speed + K * (rightEnCount - leftEnCount);
-  analogWrite(enL, motor_L_speed);
-
-  // Turn on motor A & B
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, HIGH);
-  digitalWrite(inR1, HIGH);
-  digitalWrite(inR2, LOW);
-}
-
-void goBackward(int speed)
-{
-  // Reset encoder counter
-  rightEnCount = 0;
-  leftEnCount = 0;
-
-  // For PWM maximum possible values are 0 to 255
-  analogWrite(enR, speed);
-
-  int motor_L_speed = speed + K * (rightEnCount - leftEnCount);
-  analogWrite(enL, motor_L_speed);
+  int motor_L_speed = speed + K * (encoderValueR - encoderValueL);
+  analogWrite(encoderValueL, motor_L_speed);
 
   // Turn on motor A & B
-  digitalWrite(inL1, HIGH);
-  digitalWrite(inL2, LOW);
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, HIGH);
+  digitalWrite(MotFwdL, LOW);
+  digitalWrite(MotRevL, HIGH);
+  digitalWrite(MotFwdR, LOW);
+  digitalWrite(MotRevR, HIGH);
+  Serial.print("Forward  ");
+  Serial.println(encoderValueR);
 }
 
-void stop()
+void updateEncoderL()
 {
-  // Turn off motors
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, LOW);
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, LOW);
+  int MSBL = digitalRead(encoderPin1); // MSB = most significant bit
+  int LSBL = digitalRead(encoderPin2); // LSB = least significant bit
+
+  int encodedL = (MSBL << 1) | LSBL;         // converting the 2 pin value to single number
+  int sumL = (lastEncodedL << 2) | encodedL; // adding it to the previous encoded value
+
+  if (sumL == 0b1101 || sumL == 0b0100 || sumL == 0b0010 || sumL == 0b1011)
+    encoderValueL--;
+  if (sumL == 0b1110 || sumL == 0b0111 || sumL == 0b0001 || sumL == 0b1000)
+    encoderValueL++;
+
+  lastEncodedL = encodedL; // store this value for next time
 }
 
-void turnAround(int speed)
-{
-  // Reset encoder counter
-  rightEnCount = 0;
-  leftEnCount = 0;
+void updateEncoderR() {
+  int MSBR = digitalRead(encoderPin3); // MSB = most significant bit
+  int LSBR = digitalRead(encoderPin4); // LSB = least significant bit
+  int encodedR = (MSBR << 1) | LSBR;         // converting the 2 pin value to single number
+  int sumR = (lastEncodedR << 2) | encodedR; // adding it to the previous encoded value
 
-  if (speed >= 0)
-  {
-    // const int turnWeight = 2;
-    analogWrite(enR, speed);
+  if (sumR == 0b1101 || sumR == 0b0100 || sumR == 0b0010 || sumR == 0b1011)
+    encoderValueR--;
+  if (sumR == 0b1110 || sumR == 0b0111 || sumR == 0b0001 || sumR == 0b1000)
+    encoderValueR++;
 
-    // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
-    // analogWrite(enL, motor_L_speed);
-    analogWrite(enL, speed);
-
-    // Turn on motor A & B
-    digitalWrite(inL1, LOW);
-    digitalWrite(inL2, HIGH);
-    digitalWrite(inR1, LOW);
-    digitalWrite(inR2, HIGH);
-  }
-  else
-  {
-    analogWrite(enR, -speed);
-
-    // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
-    // analogWrite(enL, motor_L_speed);
-    analogWrite(enL, -speed);
-
-    // Turn on motor A & B
-    digitalWrite(inL1, HIGH);
-    digitalWrite(inL2, LOW);
-    digitalWrite(inR1, HIGH);
-    digitalWrite(inR2, LOW);
-  }
-}
-
-void turnRight(int speed, int degree = 90, int delayForward = delayTime)
-{
-  turnAround(-speed);
-  delay(int(delayTurn*degree/90L));
-  stop();
-  delay(1000);
-  goForward(speed);
-  delay(delayForward);
-  // // Reset encoder counter
-  // rightEnCount = 0;
-  // leftEnCount = 0;
-
-  // // int speed = 50;
-  // const int turnWeight = 3;
-  // if (speed >= 0)
-  // {
-  //   analogWrite(enR, speed);
-
-  //   int motor_L_speed = turnWeight * speed + K * (turnWeight * rightEnCount - leftEnCount);
-  //   analogWrite(enL, motor_L_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, LOW);
-  //   digitalWrite(inL2, HIGH);
-  //   digitalWrite(inR1, HIGH);
-  //   digitalWrite(inR2, LOW);
-  // }
-  // else
-  // {
-  //   analogWrite(enR, -speed);
-
-  //   int motor_L_speed = turnWeight * -speed + K * (turnWeight * rightEnCount - leftEnCount);
-  //   analogWrite(enL, motor_L_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, HIGH);
-  //   digitalWrite(inL2, LOW);
-  //   digitalWrite(inR1, LOW);
-  //   digitalWrite(inR2, HIGH);
-  // }
-}
-
-void turnLeft(int speed, long degree = 90, int delayForward = delayTime)
-{
-  turnAround(speed);
-  delay(int(delayTurn*degree/90L));
-  stop();
-  delay(1000);
-  goForward(speed);
-  delay(delayForward);
-  // // Reset encoder counter
-  // rightEnCount = 0;
-  // leftEnCount = 0;
-
-  // // int speed = 50;
-  // const int turnWeight = 3;
-  // if (speed >= 0)
-  // {
-
-  //   analogWrite(enL, speed);
-
-  //   int motor_R_speed = turnWeight * speed + K * (turnWeight * leftEnCount - rightEnCount);
-  //   analogWrite(enR, motor_R_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, LOW);
-  //   digitalWrite(inL2, HIGH);
-  //   digitalWrite(inR1, HIGH);
-  //   digitalWrite(inR2, LOW);
-  // }
-  // else
-  // {
-  //   analogWrite(enL, -speed);
-
-  //   int motor_R_speed = turnWeight * -speed + K * (turnWeight * leftEnCount - rightEnCount);
-  //   analogWrite(enR, motor_R_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, HIGH);
-  //   digitalWrite(inL2, LOW);
-  //   digitalWrite(inR1, LOW);
-  //   digitalWrite(inR2, HIGH);
-  // }
-}
-
-String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR, int sensorF)
-{
-  String value = "";
-  int sensors[5] = {sensorL, sensorR, sensorFL, sensorFR, sensorF};
-  for (int i = 0; i < 5; i++)
-  {
-    if (sensors[i] == HIGH)
-    {
-      value += "0";
-    }
-    else
-    {
-      value += "1";
-    }
-  }
-  return value;
-}
-
-void action(String sensorValue)
-{
-  const int value = sensorValue.toInt();
-  switch (value)
-  {
-  case 0: // 00000
-    Serial.println("Go forward!");
-    goForward(speed);
-    delay(delayTime);
-    break;
-
-  case 1: // 00001
-    Serial.println("Stuck at wall in front. Go back, then turn left!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, 0);
-    break;
-
-  case 10: // 00010
-    Serial.println("Detected wall in front at a left angle (>= 45 degrees). Turn left 45 degrees!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, delayTime*2);
-    break;
-
-  case 11: // 00011
-    Serial.println("Detected wall in front at a left angle (< 45 degrees). Go back a bit, then turn right 45 degrees!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, 0);
-    break;
-
-  case 100: // 00100
-    Serial.println("Detected wall in front at a right angle (>= 45 degrees). Turn left 45 degrees!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, 0);
-    break;
-
-  case 101: // 00101
-    Serial.println("Detected wall in front at a right angle (< 45 degrees). Turn left 45 degrees!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnRight(speed, 45, 0);
-    break;
-
-  case 110: // 00110
-    Serial.println("Detected wall in front with both side wall open. Turn left!");
-    turnLeft(speed);
-    break;
-
-  case 111: // 00111
-    Serial.println("Too close to wall. Go back a bit!");
-    goBackward(speed);
-    delay(delayTime/2);
-    break;
-
-  case 1000: // 01000
-    Serial.println("Detected left wall open. Turn left 45 degrees x2!");
-    turnLeft(speed, 45);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, delayTime*3/2);
-    break;
-
-  case 1001: // 01001
-    Serial.println("Stuck at left angle. Go back a bit!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, delayTime*3/2);
-    break;
-
-  case 1010: // 01010
-    Serial.println("Detected too close to right wall. Turn left 35 degrees!");
-    // goBackward(speed);
-    // delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    turnLeft(speed, 35, delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 80, delayTime*2);
-    break;
-
-  case 1011: // 01011
-    Serial.println("Too close to right corner. Go back a bit!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 80, delayTime*2);
-    break;
-
-  case 1100: // 01100
-    Serial.println("Detected wall in front at a right angle but too close to right wall. Go back a bit, then turn left 45 degrees!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, 0);
-    break;
-
-  case 1101: // 01101
-    Serial.println("Detected wall in front at right angle (< 45 degrees) and end of right wall. Turn left 45 degrees, then go back a bit!");
-    turnLeft(speed, 45, 0);
-    stop();
-    delay(1000);
-    goBackward(speed);
-    delay(delayTime/2);
-    break;
-
-  case 1110: // 01110
-    Serial.println("Detected at right corner. Turn left 45 degrees x2!");
-    turnLeft(speed, 40);
-    stop();
-    delay(1000);
-    turnLeft(speed, 40, delayTime*3/2);
-    break;
-
-  case 1111: // 01111
-    Serial.println("Too close to right corner. Go back a bit!");
-    goBackward(speed);
-    delay(delayTime/2);
-    break;
-
-  case 10000:
-    Serial.println("Detected left wall close and in front open. Go forward!");
-    goForward(speed);
-    delay(delayTime);
-    break;
-
-  case 10001:
-    Serial.println("Stuck at right angle. Go back a bit, then turn right!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnRight(speed);
-    break;
-
-  case 10010:
-    Serial.println("Detected wall in front at a left angle but too close to left wall. Go back a bit, then turn right 45 degrees!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnRight(speed, 45, 0);
-    break;
-
-  case 10011:
-    Serial.println("Detected wall in front at left angle (< 45 degrees) and end of left wall. Turn right 45 degrees!");
-    turnRight(speed, 45, 0);
-    stop();
-    delay(1000);
-    goBackward(speed);
-    delay(delayTime/2);
-    break;
-
-  case 10100:
-    Serial.println("Detected too close to left wall. Turn right 35 degrees!");
-    // goBackward(speed);
-    // delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    turnRight(speed, 35, 0);
-    break;
-
-  case 10101:
-    Serial.println("Too close to left corner. Go back, then turn left 45 degrees x2!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnRight(speed, 80, delayTime*2);
-    break;
-
-  case 10110:
-    Serial.println("Detected wall in front and left wall. Turn right 45 degrees x2!");
-    // goBackward(speed);
-    // delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    turnRight(speed, 40);
-    stop();
-    delay(1000);
-    turnRight(speed, 40, delayTime*3/2);
-    break;
-
-  case 10111:
-    Serial.println("Detected too close to wall in front and left wall. Go back a bit!");
-    goBackward(speed);
-    delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    // turnRight(speed, 80, delayTime*2);
-    break;
-
-  case 11000:
-    Serial.println("Detected both side wall. Go forward!");
-    goForward(speed);
-    delay(delayTime);
-    break;
-
-  case 11001:
-    Serial.println("Stuck at wall. Go back, then turn left 45 degrees!");
-    goBackward(speed);
-    delay(delayTime);
-    stop();
-    delay(1000);
-    turnLeft(speed, 45, 0);
-    break;
-
-  case 11010:
-    Serial.println("Detected too close to right wall. Turn right 35 degrees!");
-    // goBackward(speed);
-    // delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    turnLeft(speed, 35, 0);
-    break;
-
-  case 11011:
-    Serial.println("Detected too close to wall in front and right wall. Turn right 45 degrees then go back a bit!");
-    // turnAround(speed);
-    // delay(2 * delayTurn);
-    turnRight(speed, 45);
-    stop();
-    delay(1000);
-    goBackward(speed);
-    delay(delayTime/2);
-    break;
-
-  case 11100:
-    Serial.println("Detected at left corner at right angle. Turn right 35 degrees!");
-    // goBackward(speed);
-    // delay(delayTime/2);
-    // stop();
-    // delay(1000);
-    turnRight(speed, 35, 0);
-    break;
-
-  case 11101:
-    Serial.println("Detected too close to wall in front and left wall. Turn left 45 degrees then go back a bit!");
-    // turnAround(speed);
-    // delay(2 * delayTurn);
-    turnLeft(speed, 45);
-    stop();
-    delay(1000);
-    goBackward(speed);
-    delay(delayTime/2);
-    break;
-
-  case 11110:
-    Serial.println("Detected dead end. Turn around!");
-    turnAround(speed);
-    delay(2 * delayTurn);
-    break;
-
-  case 11111:
-    Serial.println("Detected dead end and too close to wall. Go back, then turn around!");
-    goBackward(speed);
-    delay(delayTime/2);
-    stop();
-    delay(1000);
-    turnLeft(speed, 160, 0);
-    break;
-
-  default:
-    Serial.println("Default. Go forward");
-    goForward(speed);
-    delay(delayTime);
-    break;
-  }
-}
-
-void leftEnISR()
-{
-  leftEnCount++;
-}
-
-void rightEnISR()
-{
-  rightEnCount++;
+  lastEncodedR = encodedR; // store this value for next time
 }
