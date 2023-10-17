@@ -1,293 +1,141 @@
-// Mega2560
-//  external interrupt int.0    int.1    int.2   int.3   int.4   int.5
-//  pin                  2         3      21      20      19      18
+#include <QTRSensors.h>
 
-volatile int leftEnCount = 0;
-volatile int rightEnCount = 0;
+#define MotFwdL 9   // Motor Forward pin left
+#define MotRevL 10  // Motor Reverse pin left
 
-// Left Motor
-int enL = 4;
-int inL1 = 5;
-int inL2 = 6;
+#define MotFwdR 11  // Motor Forward pin right
+#define MotRevR 12  // Motor Reverse pin right
 
-// Right motor
-int inR1 = 7;
-int inR2 = 8;
-int enR = 9;
+int encoderPin1 = 20;  // int. 2
+int encoderPin2 = 21;  // int. 3
 
-// IF sensor
-int pinIR_L = 10;  // left
-int pinIR_FL = 11; // front left
-int pinIR_R = 12;  // right
-int pinIR_FR = 13; // front right
+int encoderPin3 = 18;  // int. 4
+int encoderPin4 = 19;  // int. 5
 
-const int K = 30; // adjust K for smooth response
+int enL = 8;
+int enR = 13;
+
+int P;
+int I;
+int D;
 
 const int speed = 200;
 const int delayTime = 300;
 const int delayTurn = 180;
 const int delayForward = 200;
 
-void setup()
-{
-  Serial.begin(9600);
+float Kp = 0.05;
+float Ki = 0.00001;
+float Kd = 0.8;
 
-  // configure the IR pin as an input
-  pinMode(pinIR_L, INPUT);
-  pinMode(pinIR_R, INPUT);
-  pinMode(pinIR_FL, INPUT);
-  pinMode(pinIR_FR, INPUT);
+int lastError = 0;
 
-  // interrupt # 5, pin 18
-  attachInterrupt(1, leftEnISR, CHANGE); // Also LOW, RISING, FALLING
+QTRSensors qtr;
 
-  // interrupt # 4, pin 19
-  attachInterrupt(0, rightEnISR, CHANGE); // Also LOW, RISING, FALLING
+const uint8_t SensorCount = 5;
+uint16_t sensorValues[SensorCount];
 
-  // Set all the motor control pins to outputs
+void setup() {
+  pinMode(MotFwdL, OUTPUT);
+  pinMode(MotRevL, OUTPUT);
+  pinMode(MotFwdR, OUTPUT);
+  pinMode(MotRevR, OUTPUT);
   pinMode(enR, OUTPUT);
   pinMode(enL, OUTPUT);
-  pinMode(inR1, OUTPUT);
-  pinMode(inR2, OUTPUT);
-  pinMode(inL1, OUTPUT);
-  pinMode(inL2, OUTPUT);
+  pinMode(encoderPin1, INPUT_PULLUP);
+  pinMode(encoderPin2, INPUT_PULLUP);
+  pinMode(encoderPin3, INPUT_PULLUP);
+  pinMode(encoderPin4, INPUT_PULLUP);
+  digitalWrite(encoderPin1, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin2, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin3, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin4, HIGH);  // turn pullup resistor on
+  Serial.begin(9600);
 
-  // Turn off motors - Initial state
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, LOW);
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, LOW);
-}
+  qtr.setTypeRC();
+  qtr.setSensorPins((const uint8_t[]){ A2, A3, A4, A5, A6 }, SensorCount);
 
-void loop()
-{
-  // Serial.println(leftEnCount);
-  // Serial.println(rightEnCount);
-  int sensorL = digitalRead(pinIR_L);
-  int sensorR = digitalRead(pinIR_R);
-  int sensorFL = digitalRead(pinIR_FL);
-  int sensorFR = digitalRead(pinIR_FR);
+  Serial.println("Calibrating...");
+  for (uint16_t i = 0; i < 400; i++) {
+    qtr.calibrate();
+  }
 
-  // Serial.println("sensor L = " + sensorL);
-  // Serial.println("sensor R = " + sensorR);
-  // Serial.println("sensor FL = " + sensorFL);
-  // Serial.println("sensor FR = " + sensorFR);
+  // print the calibration minimum values measured when emitters were on
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.minimum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
 
-  String sensorValue = readSensor(sensorL, sensorR, sensorFL, sensorFR);
-  Serial.print(sensorValue + " ");
-  action(sensorValue);
-  stop();
+  // print the calibration maximum values measured when emitters were on
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.maximum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+  Serial.println();
   delay(1000);
 }
 
-void goForward(int speed)
-{
-  // Reset encoder counter
-  rightEnCount = 0;
-  leftEnCount = 0;
-
-  // For PWM maximum possible values are 0 to 255
-  analogWrite(enR, speed);
-
-  int motor_L_speed = speed + K * (rightEnCount - leftEnCount);
-  analogWrite(enL, motor_L_speed);
-
-  // Turn on motor A & B
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, HIGH);
-  digitalWrite(inR1, HIGH);
-  digitalWrite(inR2, LOW);
+void loop() {
+  PID_control();
 }
 
-void goBackward(int speed)
-{
-  // Reset encoder counter
-  rightEnCount = 0;
-  leftEnCount = 0;
+void PID_control() {
+  uint16_t positionLine = qtr.readLineBlack(sensorValues);
+  Serial.print("Sensors: ");
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+  }
+  Serial.print("Position: ");
+  Serial.print(positionLine);
+  Serial.print('\t');
 
-  // For PWM maximum possible values are 0 to 255
-  analogWrite(enR, speed);
+  int error = 2000 - positionLine;
 
-  int motor_L_speed = speed + K * (rightEnCount - leftEnCount);
-  analogWrite(enL, motor_L_speed);
+  P = error;
+  I = error + I;
+  D = error - lastError;
+  lastError = error;
 
-  // Turn on motor A & B
-  digitalWrite(inL1, HIGH);
-  digitalWrite(inL2, LOW);
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, HIGH);
+  int motorSpeedChange = P * Kp + I * Ki + D * Kd;
+  Serial.print("Error: ");
+  Serial.print(motorSpeedChange);
+  Serial.print("\t");
+
+  int motorSpeedA = 200 - motorSpeedChange;
+  int motorSpeedB = 200 + motorSpeedChange;
+  Serial.print("Speed Left:");
+  Serial.print(motorSpeedA);
+  Serial.print(" ");
+  Serial.print("Speed Right:");
+  Serial.println(motorSpeedB);
+
+  if (motorSpeedA > 255) {
+    motorSpeedA = 255;
+  }
+  if (motorSpeedB > 255) {
+    motorSpeedB = 255;
+  }
+  if (motorSpeedA < 0) {
+    motorSpeedA = 0;
+  }
+  if (motorSpeedB < 0) {
+    motorSpeedB = 0;
+  }
+  forward_movement(motorSpeedA, motorSpeedB);
 }
 
-void stop()
-{
-  // Turn off motors
-  digitalWrite(inR1, LOW);
-  digitalWrite(inR2, LOW);
-  digitalWrite(inL1, LOW);
-  digitalWrite(inL2, LOW);
+
+void forward_movement(int speedA, int speedB) {
+  digitalWrite(MotFwdL, HIGH);
+  digitalWrite(MotRevL, LOW);
+  digitalWrite(MotFwdR, HIGH);
+  digitalWrite(MotRevR, LOW);
+  analogWrite(enL, speedA);
+  analogWrite(enR, speedB);
 }
-
-void turnAround(int speed)
-{
-  // Reset encoder counter
-  rightEnCount = 0;
-  leftEnCount = 0;
-
-  if (speed >= 0)
-  {
-    // const int turnWeight = 2;
-    analogWrite(enR, speed);
-
-    // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
-    // analogWrite(enL, motor_L_speed);
-    analogWrite(enL, speed);
-
-    // Turn on motor A & B
-    digitalWrite(inL1, LOW);
-    digitalWrite(inL2, HIGH);
-    digitalWrite(inR1, LOW);
-    digitalWrite(inR2, HIGH);
-  }
-  else
-  {
-    analogWrite(enR, -speed);
-
-    // int motor_L_speed = turnWeight*speed + K*(turnWeight*rightEnCount-leftEnCount);
-    // analogWrite(enL, motor_L_speed);
-    analogWrite(enL, -speed);
-
-    // Turn on motor A & B
-    digitalWrite(inL1, HIGH);
-    digitalWrite(inL2, LOW);
-    digitalWrite(inR1, HIGH);
-    digitalWrite(inR2, LOW);
-  }
-}
-
-void turnRight(int speed, int degree = 90)
-{
-  turnAround(-speed);
-  delay(int(delayTurn * degree / 90));
-  stop();
-  delay(1000);
-  goForward(speed);
-  // // Reset encoder counter
-  // rightEnCount = 0;
-  // leftEnCount = 0;
-
-  // // int speed = 50;
-  // const int turnWeight = 3;
-  // if (speed >= 0)
-  // {
-  //   analogWrite(enR, speed);
-
-  //   int motor_L_speed = turnWeight * speed + K * (turnWeight * rightEnCount - leftEnCount);
-  //   analogWrite(enL, motor_L_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, LOW);
-  //   digitalWrite(inL2, HIGH);
-  //   digitalWrite(inR1, HIGH);
-  //   digitalWrite(inR2, LOW);
-  // }
-  // else
-  // {
-  //   analogWrite(enR, -speed);
-
-  //   int motor_L_speed = turnWeight * -speed + K * (turnWeight * rightEnCount - leftEnCount);
-  //   analogWrite(enL, motor_L_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, HIGH);
-  //   digitalWrite(inL2, LOW);
-  //   digitalWrite(inR1, LOW);
-  //   digitalWrite(inR2, HIGH);
-  // }
-}
-
-void turnLeft(int speed, int degree = 90)
-{
-  turnAround(speed);
-  delay(int(delayTurn * degree / 90));
-  stop();
-  delay(1000);
-  goForward(speed);
-  // // Reset encoder counter
-  // rightEnCount = 0;
-  // leftEnCount = 0;
-
-  // // int speed = 50;
-  // const int turnWeight = 3;
-  // if (speed >= 0)
-  // {
-
-  //   analogWrite(enL, speed);
-
-  //   int motor_R_speed = turnWeight * speed + K * (turnWeight * leftEnCount - rightEnCount);
-  //   analogWrite(enR, motor_R_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, LOW);
-  //   digitalWrite(inL2, HIGH);
-  //   digitalWrite(inR1, HIGH);
-  //   digitalWrite(inR2, LOW);
-  // }
-  // else
-  // {
-  //   analogWrite(enL, -speed);
-
-  //   int motor_R_speed = turnWeight * -speed + K * (turnWeight * leftEnCount - rightEnCount);
-  //   analogWrite(enR, motor_R_speed);
-
-  //   // Turn on motor A & B
-  //   digitalWrite(inL1, HIGH);
-  //   digitalWrite(inL2, LOW);
-  //   digitalWrite(inR1, LOW);
-  //   digitalWrite(inR2, HIGH);
-  // }
-}
-
-String readSensor(int sensorL, int sensorR, int sensorFL, int sensorFR)
-{
-  if (sensorL == HIGH)
-  {
-    sensorL = 0;
-  }
-  else
-  {
-    sensorL = 1;
-  }
-
-  if (sensorR == HIGH)
-  {
-    sensorR = 0;
-  }
-  else
-  {
-    sensorR = 1;
-  }
-
-  if (sensorFL == HIGH)
-  {
-    sensorFL = 0;
-  }
-  else
-  {
-    sensorFL = 1;
-  }
-
-  if (sensorFR == HIGH)
-  {
-    sensorFR = 0;
-  }
-  else
-  {
-    sensorFR = 1;
-  }
-
-  return String(sensorL) + String(sensorR) + String(sensorFL) + String(sensorFR);
-}
-
 
 
 void action(String sensorValue)
