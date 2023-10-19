@@ -53,10 +53,17 @@ double lastDotLocation[3] = { 0, 0, 0 };
 const int gamma = 3;
 const int lambda = 6;
 const int h = 1;
-const float wheelDistance = 0.16;
+const float WHEEL_DISTANCE = 0.16;
 double vl = 0;
 double vr = 0;
+double wl = 0;
+double wr = 0;
 
+const float WHEEL_RADIUS = 0.045 / 2;
+// const int GEAR_RATIO = 150;
+// const int PPR = 7 * GEAR_RATIO;
+const int PPR = 4217;
+const float PPS2MS = WHEEL_RADIUS / PPR;
 float encoderLMS = 0;
 float encoderRMS = 0;
 
@@ -110,12 +117,6 @@ void setup() {
   Serial.println();
   while (digitalRead(startBtnPin) == HIGH) {}
 
-  const float WHEEL_RADIUS = 0.045 / 2;
-  const int GEAR_RATIO = 150;
-  const int PPR = 7 * GEAR_RATIO;
-  encoderValueL = 0;
-  encoderValueR = 0;
-  const float PPS2MS = 2 * PI * WHEEL_RADIUS / PPR * GEAR_RATIO;
   forward_movement(255, 255);
   delay(1000);
   encoderLMS = encoderValueL * PPS2MS;
@@ -126,14 +127,11 @@ void setup() {
   stop();
 
   while (digitalRead(startBtnPin) == HIGH) {}
-  Serial.println();
+  Serial.println(PPS2MS);
   delay(1000);
 }
 
 void loop() {
-  long currentTime = millis();
-  encoderValueL = 0;
-  encoderValueR = 0;
 
   if (nextPhase == true) {
     if (array_cmp(currentLocation, target, 3, 3) == true) {
@@ -147,14 +145,36 @@ void loop() {
       Serial.print(vr);
       Serial.print("\t");
 
-      int motorSpeedLeft = int(255 * vl / encoderLMS) * 2 + 200;
-      int motorSpeedRight = int(255 * vr / encoderRMS) * 2 + 200;
+      // encoderLMS = encoderValueL / (millis() - currentTime) * PPS2MS;
+      // encoderRMS = encoderValueR / (millis() - currentTime) * PPS2MS;
+      int motorSpeedLeft = int(255 * float(encoderLMS / vl));
+      int motorSpeedRight = int(255 * float(encoderRMS / vr));
+      if (motorSpeedLeft < 100) {
+        motorSpeedLeft += 100;
+      }
+      if (motorSpeedRight < 100) {
+        motorSpeedRight += 100;
+      }
+      Serial.print(encoderLMS);
+      Serial.print(" ");
+      Serial.print(encoderRMS);
+      Serial.print("\t");
       Serial.print(motorSpeedLeft);
       Serial.print(" ");
       Serial.print(motorSpeedRight);
       Serial.print("\t");
 
+      encoderValueL = 0;
+      encoderValueR = 0;
+      long currentTime = millis();
       forward_movement(motorSpeedLeft, motorSpeedRight);
+      delay(1000);
+      encoderLMS = encoderValueL * PPS2MS;
+      encoderRMS = encoderValueR * PPS2MS;
+      Serial.print(encoderLMS);
+      Serial.print(" ");
+      Serial.print(encoderRMS);
+      Serial.print("\t");
       updateLocation(currentTime);
       Serial.print("X: ");
       Serial.print(currentLocation[0]);
@@ -265,41 +285,43 @@ void forward_movement(int speedA, int speedB) {
     speedB = -speedB;
   }
 
-  if (speedA > 255) {
-    speedA = 255;
-  }
-  if (speedB > 255) {
-    speedB = 255;
-  }
+  // if (speedA > 255) {
+  //   speedA = 255;
+  // }
+  // if (speedB > 255) {
+  //   speedB = 255;
+  // }
 
-  if (speedA < 100) {
-    speedA = 100;
-  }
-  if (speedB > 100) {
-    speedB = 100;
-  }
+  // if (speedA < 100) {
+  //   speedA = 100;
+  // }
+  // if (speedB > 100) {
+  //   speedB = 100;
+  // }
 
   analogWrite(enL, speedA);
-  speedB += K * (encoderValueL - encoderValueR);
+  // speedB += K * (encoderValueL - encoderValueR);
   analogWrite(enR, speedB);
 }
 
 void updateController() {
-  double rho = sqrt(pow(target[0] - currentLocation[0], 2) + pow(target[1] - currentLocation[1], 2));
-  double phi = atan2(target[1] - currentLocation[1], target[0] - currentLocation[0]) - target[2];
+  double deltaX = target[0] - currentLocation[0];
+  double deltaY = target[1] - currentLocation[1];
+  double rho = sqrt(pow(deltaX, 2) + pow(deltaY, 2));
+  double phi = atan2(deltaY, deltaX) - target[2];
   double alpha = phi + target[2] - currentLocation[2];
 
   double v = gamma * cos(alpha) * rho;
   double w = lambda * alpha + gamma * cos(alpha) * sin(alpha) / alpha * (alpha + h * phi);
 
-  vl = (2 * v - wheelDistance * w) / 2;
-  vr = (2 * v + wheelDistance * w) / 2;
+  vl = v - WHEEL_DISTANCE * w / 2;
+  vr = v + WHEEL_DISTANCE * w / 2;
 }
 
 void updateLocation(long pastTime) {
-  double xdot = (vr + vl) / 2 * cos(currentLocation[2]);
-  double ydot = (vr + vl) / 2 * sin(currentLocation[2]);
-  double thetadot = (vr - vl) / wheelDistance;
+  double xdot = (encoderRMS + encoderLMS) / 2 * cos(currentLocation[2]);
+  double ydot = (encoderRMS + encoderLMS) / 2 * sin(currentLocation[2]);
+  double thetadot = (encoderRMS - encoderLMS) / WHEEL_DISTANCE;
 
   float deltaT = float(millis() - pastTime) / 1000.0;
   Serial.print("Time: ");
