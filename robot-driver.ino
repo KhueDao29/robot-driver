@@ -47,12 +47,14 @@ QTRSensors qtr;
 const uint8_t SensorCount = 5;
 uint16_t sensorValues[SensorCount];
 
-const double target[3] = { 0.77, 2, 90 * PI / 180 };
+const double target[3] = { 0.77, 2, 90 / 2 * PI / 180 };
+// const double target[3] = { 0.5, 0.5, 90 * PI / 180 };
 double currentLocation[3] = { 0, 0, 0 };
 double lastDotLocation[3] = { 0, 0, 0 };
+
 const int gamma = 3;
 const int lambda = 6;
-const int h = 1;
+const int h = 0.04;
 const float WHEEL_DISTANCE = 0.16;
 double vl = 0;
 double vr = 0;
@@ -135,55 +137,66 @@ void setup() {
 void loop() {
 
   // if (nextPhase == true) {
-    if (array_cmp(currentLocation, target, 3, 3) == true) {
-      stop();
-    } else {
-      updateController();
-      Serial.print("VL: ");
-      Serial.print(vl);
-      Serial.print(" ");
-      Serial.print("VR: ");
-      Serial.print(vr);
-      Serial.print("\t");
+  if (array_cmp(currentLocation, target, 3, 3) == true) {
+    stop();
+  } else {
+    updateController();
+    Serial.print("VL: ");
+    Serial.print(vl);
+    Serial.print(" ");
+    Serial.print("VR: ");
+    Serial.print(vr);
+    Serial.print("\t");
+    // encoderLMS = encoderValueL / (millis() - currentTime) * PPS2MS;
+    // encoderRMS = encoderValueR / (millis() - currentTime) * PPS2MS;
+   
+    // if (vl > encoderLMS) {
+    //   motorSpeedLeft = 255;
+    // } else {
+    //   motorSpeedLeft = int(float(encoderLMS / vl));
+    // }
+    // if (vl > encoderRMS) {
+    //   motorSpeedRight = 255;
+    // } else {
+    //   motorSpeedRight = int(float( encoderRMS /vr));
+    // }
 
-      // encoderLMS = encoderValueL / (millis() - currentTime) * PPS2MS;
-      // encoderRMS = encoderValueR / (millis() - currentTime) * PPS2MS;
-      int motorSpeedLeft = int(float( vl*1.1/encoderLMS));
-      int motorSpeedRight = int(float(vr*1.1/encoderRMS));
-      if (motorSpeedLeft < 100) {
-        motorSpeedLeft += 100;
-      }
-      if (motorSpeedRight < 100) {
-        motorSpeedRight += 100;
-      }
-      Serial.print(encoderLMS);
-      Serial.print(" ");
-      Serial.print(encoderRMS);
-      Serial.print("\t");
-      Serial.print(motorSpeedLeft);
-      Serial.print(" ");
-      Serial.print(motorSpeedRight);
-      Serial.print("\t");
-
-      encoderValueL = 0;
-      encoderValueR = 0;
-      long currentTime = millis();
-      forward_movement(motorSpeedLeft, motorSpeedRight);
-      delay(400);
-      encoderLMS = encoderValueL * PPS2MS;
-      encoderRMS = encoderValueR * PPS2MS;
-      Serial.print(encoderLMS);
-      Serial.print(" ");
-      Serial.print(encoderRMS);
-      Serial.print("\t");
-      updateLocation(currentTime);
-      Serial.print("X: ");
-      Serial.print(currentLocation[0]);
-      Serial.print(" Y: ");
-      Serial.print(currentLocation[1]);
-      Serial.print(" Theta: ");
-      Serial.println(currentLocation[2]);
+    int motorSpeedLeft = int(float( vl*1.1/encoderLMS));
+    int motorSpeedRight = int(float(vr*1.1/encoderRMS));
+    if (motorSpeedLeft < 100) {
+      motorSpeedLeft += 100;
     }
+    if (motorSpeedRight < 100) {
+      motorSpeedRight += 100;
+    }
+    Serial.print(encoderLMS);
+    Serial.print(" ");
+    Serial.print(encoderRMS);
+    Serial.print("\t");
+    Serial.print(motorSpeedLeft);
+    Serial.print(" ");
+    Serial.print(motorSpeedRight);
+    Serial.print("\t");
+
+    encoderValueL = 0;
+    encoderValueR = 0;
+    long currentTime = millis();
+    forward_movement(motorSpeedLeft, motorSpeedRight);
+    delay(400);
+    encoderLMS = encoderValueL * PPS2MS;
+    encoderRMS = encoderValueR * PPS2MS;
+    Serial.print(encoderLMS);
+    Serial.print(" ");
+    Serial.print(encoderRMS);
+    Serial.print("\t");
+    updateLocation(currentTime);
+    Serial.print("X: ");
+    Serial.print(currentLocation[0]);
+    Serial.print(" Y: ");
+    Serial.print(currentLocation[1]);
+    Serial.print(" Theta: ");
+    Serial.println(currentLocation[2]);
+  }
   // } else {
   //   PID_control();
   // }
@@ -196,8 +209,9 @@ boolean array_cmp(double *a, double *b, int len_a, int len_b) {
   if (len_a != len_b) return false;
 
   // test each element to be the same. if not, return false
-  for (n = 0; n < len_a; n++)
-    if (abs(a[n] - b[n]) >= 0.10) return false;
+  // for (n = 0; n < len_a; n++)
+  //   if (abs(a[n] - b[n]) >= 0.50                                                                                                                                                                                                                                                                                         ) return false;
+  if (abs(a[0] - b[0]) >= 0.1) return false;
 
   //ok, if we have not returned yet, they are equal :)
   return true;
@@ -324,7 +338,7 @@ void updateLocation(long pastTime) {
   double ydot = (encoderRMS + encoderLMS) / 2 * sin(currentLocation[2]);
   double thetadot = (encoderRMS - encoderLMS) / WHEEL_DISTANCE;
 
-  float deltaT = float(millis() - pastTime)/1000.0;
+  float deltaT = float(millis() - pastTime) / 1000.0;
   Serial.print("Time: ");
   Serial.print(deltaT, 10);
   Serial.print("\t");
