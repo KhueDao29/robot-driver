@@ -86,20 +86,23 @@ void loop() {
       Serial.print("You sent me: ");
       Serial.println(data);
       data_float = data.toFloat();
+  } else {
+    data_float = 0;
+  }
 
-  if (data == 0 ) { //no obstacle -> follow line 
+  if (data_float == 0 ) { //no obstacle -> follow line 
     PID_control();
   }
-  else if (data == 1) { //obstacle in front
+  else if (data_float == 1) { //obstacle in front
     //turn right 90 degree??
     forward_movement(200,0);
     delay(500);
   }
   else { //hug left wall
-    if (data < 0.2) {
+    if (data_float < 0.2) {
       //turn right
       forward_movement(200,100);
-    } else if (data > 0.4) {
+    } else if (data_float > 0.4) {
       //turn left 
       forward_movement(100,200);
     } else {
@@ -167,12 +170,12 @@ void forward_movement(int speedA, int speedB) {
 }
 
 
-void leftEnISR()
-{
-  leftEnCount++;
-}
+// void leftEnISR()
+// {
+//   leftEnCount++;
+// }
 
-void rightEnISR()
-{
-  rightEnCount++;
-}
+// void rightEnISR()
+// {
+//   rightEnCount++;
+// }
