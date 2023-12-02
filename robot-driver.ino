@@ -40,6 +40,7 @@ int lastError = 0;
 int sensorSum = 0;
 bool nextPhase = false;
 bool STOP = false;
+bool follow_line = true;
 const int K = 20;  // adjust K for smooth response
 
 QTRSensors qtr;
@@ -135,20 +136,42 @@ void setup() {
 }
 
 void loop() {
-    if (Serial.available() > 0) {
+
+  
+  uint16_t positionLine = qtr.readLineBlack(sensorValues);
+  Serial.print("Sensors: ");
+
+  sensorSum = 0;
+
+  for (uint8_t i = 0; i < SensorCount; i++) { //line sensor
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+    sensorSum += sensorValues[i];
+  }
+
+  if (sensorSum <5000) {
+    follow_line = true;
+  }
+  
+  if (Serial.available() > 0) { //lidar
       data = Serial.readStringUntil('\n');
       Serial.print("You sent me: ");
       Serial.println(data);
       data_float = data.toFloat();
   } else {
     data_float = 0;
+    // 1 -> obstacle in front
+    // 0 -> no ostacle
+    // =/= 1,0 -> distance from obstacle on the left 
   }
 
-  if (data_float == 0 ) { //no obstacle -> follow line 
+  if (data_float != 1 && follow_line) { //no obstacle in front & line detected -> follow line 
     PID_control();
   }
-  else if (data_float == 1) { //obstacle in front
+
+  else if (data_float == 1) { //obstacle in front & line detected -> turn right 
     //turn right 90 degree??
+    follow_line = true;
     forward_movement(200,0);
     delay(500);
   }
@@ -166,60 +189,7 @@ void loop() {
    
   }
 
-  delay(1000);
-  // if (nextPhase == true) {
-  //   if (array_cmp(currentLocation, target, 3, 3) == true) {
-  //     stop();
-  //   } else {
-  //     updateController();
-  //     Serial.print("VL: ");
-  //     Serial.print(vl);
-  //     Serial.print(" ");
-  //     Serial.print("VR: ");
-  //     Serial.print(vr);
-  //     Serial.print("\t");
-
-  //     // encoderLMS = encoderValueL / (millis() - currentTime) * PPS2MS;
-  //     // encoderRMS = encoderValueR / (millis() - currentTime) * PPS2MS;
-  //     int motorSpeedLeft = int(255 * float(encoderLMS / vl));
-  //     int motorSpeedRight = int(255 * float(encoderRMS / vr));
-  //     if (motorSpeedLeft < 100) {
-  //       motorSpeedLeft += 100;
-  //     }
-  //     if (motorSpeedRight < 100) {
-  //       motorSpeedRight += 100;
-  //     }
-  //     Serial.print(encoderLMS);
-  //     Serial.print(" ");
-  //     Serial.print(encoderRMS);
-  //     Serial.print("\t");
-  //     Serial.print(motorSpeedLeft);
-  //     Serial.print(" ");
-  //     Serial.print(motorSpeedRight);
-  //     Serial.print("\t");
-
-  //     encoderValueL = 0;
-  //     encoderValueR = 0;
-  //     long currentTime = millis();
-  //     forward_movement(motorSpeedLeft, motorSpeedRight);
-  //     delay(1000);
-  //     encoderLMS = encoderValueL * PPS2MS;
-  //     encoderRMS = encoderValueR * PPS2MS;
-  //     Serial.print(encoderLMS);
-  //     Serial.print(" ");
-  //     Serial.print(encoderRMS);
-  //     Serial.print("\t");
-  //     updateLocation(currentTime);
-  //     Serial.print("X: ");
-  //     Serial.print(currentLocation[0]);
-  //     Serial.print(" Y: ");
-  //     Serial.print(currentLocation[1]);
-  //     Serial.print(" Theta: ");
-  //     Serial.println(currentLocation[2]);
-  //   }
-  // } else {
-  //   PID_control();
-  // }
+  delay(500);
 }
 
 boolean array_cmp(double *a, double *b, int len_a, int len_b) {
