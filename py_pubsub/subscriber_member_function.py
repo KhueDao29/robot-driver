@@ -18,6 +18,10 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 import numpy as np
 
+import serial
+
+ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=1)
+ser.reset_input_buffer()
 
 class MinimalSubscriber(Node):
 
@@ -32,9 +36,29 @@ class MinimalSubscriber(Node):
 
     def listener_callback(self, msg):
         # self.get_logger().info('I heard: "%s"' % msg.ranges)
+        DISTANCE_THRESHOLD = 0.25
+        NUM_DIVISIONS = 5
+        
         full_ranges = np.array(msg.ranges)
-        if full_ranges[-50:50].mean() < 0.2:
-            print("Infront")
+        num_points = len(full_ranges)
+        
+        front_range = full_ranges[-round(num_points/2**NUM_DIVISIONS):] + full_ranges[:round(num_points/2**NUM_DIVISIONS)]
+        left_range = full_ranges[round(num_points/2**NUM_DIVISIONS)*NUM_DIVISIONS*4:round(num_points/2**NUM_DIVISIONS)*(NUM_DIVISIONS+1)*4]
+        
+        is_front = np.nanmean(front_range) <= DISTANCE_THRESHOLD
+        is_left = np.nanmean(left_range) <= DISTANCE_THRESHOLD
+        
+        out_data = ""
+        if is_front:
+            out_data = "y"
+        elif is_left:
+            out_data = str(np.nanmean(left_range))
+        else:
+            out_data = "n"
+        
+        ser.write((out_data + "\n").encode("utf-8"))
+        output_line = ser.readline().decode('utf-8').rstrip()
+        print(output_line)            
 
 
 def main(args=None):
