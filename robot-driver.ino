@@ -32,7 +32,7 @@ const int delayTime = 300;
 const int delayTurn = 180;
 const int delayForward = 200;
 
-float Kp = 0.05;
+float Kp = 0.3;
 float Ki = 0.00001;
 float Kd = 0.8;
 
@@ -48,30 +48,16 @@ QTRSensors qtr;
 const uint8_t SensorCount = 5;
 uint16_t sensorValues[SensorCount];
 
-const double target[3] = { 0.77, 2, 90 * PI / 180 };
-double currentLocation[3] = { 0, 0, 0 };
-double lastDotLocation[3] = { 0, 0, 0 };
-const int gamma = 3;
-const int lambda = 6;
-const int h = 1;
-const float WHEEL_DISTANCE = 0.16;
-double vl = 0;
-double vr = 0;
-double wl = 0;
-double wr = 0;
-
-const float WHEEL_RADIUS = 0.045 / 2;
-// const int GEAR_RATIO = 150;
-// const int PPR = 7 * GEAR_RATIO;
-const int PPR = 4217;
-const float PPS2MS = WHEEL_RADIUS / PPR;
 float encoderLMS = 0;
 float encoderRMS = 0;
 
-String data;
-float data_float;
+bool isEnd = false;
+bool disablePID = false;
+
+long startTime = 0;
 
 void setup() {
+  Serial.println("Test");
   pinMode(MotFwdL, OUTPUT);
   pinMode(MotRevL, OUTPUT);
   pinMode(MotFwdR, OUTPUT);
@@ -100,111 +86,121 @@ void setup() {
   attachInterrupt(4, updateEncoder, CHANGE);
   attachInterrupt(5, updateEncoder, CHANGE);
 
+  if (!disablePID) {
+    Serial.println("Calibrating...");
+    for (uint16_t i = 0; i < 400; i++) {
+      qtr.calibrate();
+    }
+
+    // print the calibration minimum values measured when emitters were on
+    for (uint8_t i = 0; i < SensorCount; i++) {
+      Serial.print(qtr.calibrationOn.minimum[i]);
+      Serial.print(' ');
+    }
+    Serial.println();
+
+    // print the calibration maximum values measured when emitters were on
+    for (uint8_t i = 0; i < SensorCount; i++) {
+      Serial.print(qtr.calibrationOn.maximum[i]);
+      Serial.print(' ');
+    }
+    Serial.println();
+
+    Serial.println("Done calibrate!");
+  }
   while (digitalRead(startBtnPin) == HIGH) {}
-  Serial.println("Calibrating...");
-  for (uint16_t i = 0; i < 400; i++) {
-    qtr.calibrate();
-  }
-
-  // print the calibration minimum values measured when emitters were on
-  for (uint8_t i = 0; i < SensorCount; i++) {
-    Serial.print(qtr.calibrationOn.minimum[i]);
-    Serial.print(' ');
-  }
-  Serial.println();
-
-  // print the calibration maximum values measured when emitters were on
-  for (uint8_t i = 0; i < SensorCount; i++) {
-    Serial.print(qtr.calibrationOn.maximum[i]);
-    Serial.print(' ');
-  }
-  Serial.println();
-  while (digitalRead(startBtnPin) == HIGH) {}
-
-  // forward_movement(255, 255);
-  // delay(1000);
-  // encoderLMS = encoderValueL * PPS2MS;
-  // encoderRMS = encoderValueR * PPS2MS;
-  // Serial.print(encoderLMS);
-  // Serial.print(" ");
-  // Serial.println(encoderRMS);
-  // stop();
-
-  // while (digitalRead(startBtnPin) == HIGH) {}
-  // Serial.println(PPS2MS);
-  // delay(1000);
+  delay(2000);
 }
 
 void loop() {
-
-  
   uint16_t positionLine = qtr.readLineBlack(sensorValues);
-  Serial.print("Sensors: ");
+  // Serial.print("Sensors: ");
 
   sensorSum = 0;
-
-  for (uint8_t i = 0; i < SensorCount; i++) { //line sensor
-    Serial.print(sensorValues[i]);
-    Serial.print('\t');
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    // Serial.print(sensorValues[i]);
+    // Serial.print('\t');
     sensorSum += sensorValues[i];
   }
 
-  if (sensorSum <5000) {
-    follow_line = true;
-  }
-  
-  if (Serial.available() > 0) { //lidar
-      data = Serial.readStringUntil('\n');
-      Serial.print("You sent me: ");
-      Serial.println(data);
-      data_float = data.toFloat();
-  } else {
-    data_float = 0;
-    // 1 -> obstacle in front
-    // 0 -> no ostacle
-    // =/= 1,0 -> distance from obstacle on the left 
-  }
-
-  if (data_float != 1 && follow_line) { //no obstacle in front & line detected -> follow line 
-    PID_control();
-  }
-
-  else if (data_float == 1) { //obstacle in front & line detected -> turn right 
-    //turn right 90 degree??
-    follow_line = true;
-    forward_movement(200,0);
+  if (isEnd && (digitalRead(startBtnPin) == LOW)) {
+    isEnd = false;
     delay(500);
   }
-  else { //hug left wall
-    if (data_float < 0.2) {
-      //turn right
-      forward_movement(200,100);
-    } else if (data_float > 0.4) {
-      //turn left 
-      forward_movement(100,200);
-    } else {
-      //forward
-      forward_movement(200,200);
-    }
-   
+  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 5000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd)) {
+    stop();
+    isEnd = true;
+    delay(500);
+    startTime = 0;
   }
 
-  delay(500);
+  if (!isEnd) {
+    if (!disablePID) {
+      if (follow_line) {
+        PID_control();
+      }
+    } else {
+      forward_movement(200, 200);
+    }
+
+    if (Serial.available() > 0) {
+      String lidarData = Serial.readStringUntil('\n');
+      Serial.println(lidarData);
+
+      if (lidarData[0] == 'y') {
+
+        while ((lidarData[0] == 'y') && (lidarData[1] != 'l')) {
+          if (digitalRead(startBtnPin) == LOW) {
+            stop();
+            isEnd = true;
+          }
+          forward_movement(200, -200);
+          lidarData = Serial.readStringUntil('\n');
+          Serial.println(lidarData);
+        }
+
+        stop();
+        delay(2000);
+
+        do {
+          uint16_t positionLine = qtr.readLineBlack(sensorValues);
+
+          sensorSum = 0;
+          for (uint8_t i = 0; i < SensorCount; i++) {
+            sensorSum += sensorValues[i];
+          }
+
+          if (digitalRead(startBtnPin) == LOW) {
+            stop();
+            isEnd = true;
+            break;
+          }
+          if (lidarData[1] == 'c') {
+            forward_movement(100, -100);
+            Serial.println("r");
+          } else if (lidarData[1] == 'f') {
+            forward_movement(-100, 100);
+            Serial.println("l");
+          } else if (lidarData[1] == 'l') {
+            forward_movement(200, 200);
+            Serial.println("s");
+          }
+          lidarData = Serial.readStringUntil('\n');
+        } while (isOffLine());
+        stop();
+        delay(2000);
+        startTime = millis();
+      }
+    }
+
+
+    if (digitalRead(startBtnPin) == LOW) {
+      stop();
+      isEnd = true;
+    }
+  }
 }
 
-boolean array_cmp(double *a, double *b, int len_a, int len_b) {
-  int n;
-
-  // if their lengths are different, return false
-  if (len_a != len_b) return false;
-
-  // test each element to be the same. if not, return false
-  for (n = 0; n < len_a; n++)
-    if (abs(a[n] - b[n]) >= 0.01) return false;
-
-  //ok, if we have not returned yet, they are equal :)
-  return true;
-}
 
 void stop() {
   digitalWrite(MotFwdL, LOW);
@@ -213,20 +209,24 @@ void stop() {
   digitalWrite(MotRevR, LOW);
 }
 
+bool isOffLine() {
+  return sensorSum < 500;
+}
+
 int PID_control() {
   uint16_t positionLine = qtr.readLineBlack(sensorValues);
-  Serial.print("Sensors: ");
+  // Serial.print("Sensors: ");
 
   sensorSum = 0;
 
   for (uint8_t i = 0; i < SensorCount; i++) {
-    Serial.print(sensorValues[i]);
-    Serial.print('\t');
+    // Serial.print(sensorValues[i]);
+    // Serial.print('\t');
     sensorSum += sensorValues[i];
   }
-  Serial.print("Position: ");
-  Serial.print(positionLine);
-  Serial.print('\t');
+  // Serial.print("Position: ");
+  // Serial.print(positionLine);
+  // Serial.print('\t');
 
   int error = 2000 - positionLine;
 
@@ -236,17 +236,17 @@ int PID_control() {
   lastError = error;
 
   int motorSpeedChange = P * Kp + I * Ki + D * Kd;
-  Serial.print("Error: ");
-  Serial.print(motorSpeedChange);
-  Serial.print("\t");
+  // Serial.print("Error: ");
+  // Serial.print(motorSpeedChange);
+  // Serial.print("\t");
 
   int motorSpeedA = 200 - motorSpeedChange;
   int motorSpeedB = 200 + motorSpeedChange;
-  Serial.print("Speed Left:");
-  Serial.print(motorSpeedA);
-  Serial.print(" ");
-  Serial.print("Speed Right:");
-  Serial.println(motorSpeedB);
+  // Serial.print("Speed Left:");
+  // Serial.print(motorSpeedA);
+  // Serial.print(" ");
+  // Serial.print("Speed Right:");
+  // Serial.println(motorSpeedB);
 
   if (motorSpeedA > 255) {
     motorSpeedA = 255;
@@ -283,51 +283,9 @@ void forward_movement(int speedA, int speedB) {
     speedB = -speedB;
   }
 
-  // if (speedA > 255) {
-  //   speedA = 255;
-  // }
-  // if (speedB > 255) {
-  //   speedB = 255;
-  // }
-
-  // if (speedA < 100) {
-  //   speedA = 100;
-  // }
-  // if (speedB > 100) {
-  //   speedB = 100;
-  // }
-
   analogWrite(enL, speedA);
   // speedB += K * (encoderValueL - encoderValueR);
   analogWrite(enR, speedB);
-}
-
-void updateController() {
-  double deltaX = target[0] - currentLocation[0];
-  double deltaY = target[1] - currentLocation[1];
-  double rho = sqrt(pow(deltaX, 2) + pow(deltaY, 2));
-  double phi = atan2(deltaY, deltaX) - target[2];
-  double alpha = phi + target[2] - currentLocation[2];
-
-  double v = gamma * cos(alpha) * rho;
-  double w = lambda * alpha + gamma * cos(alpha) * sin(alpha) / alpha * (alpha + h * phi);
-
-  vl = v - WHEEL_DISTANCE * w / 2;
-  vr = v + WHEEL_DISTANCE * w / 2;
-}
-
-void updateLocation(long pastTime) {
-  double xdot = (encoderRMS + encoderLMS) / 2 * cos(currentLocation[2]);
-  double ydot = (encoderRMS + encoderLMS) / 2 * sin(currentLocation[2]);
-  double thetadot = (encoderRMS - encoderLMS) / WHEEL_DISTANCE;
-
-  float deltaT = float(millis() - pastTime) / 1000.0;
-  Serial.print("Time: ");
-  Serial.print(deltaT, 10);
-  Serial.print("\t");
-  currentLocation[0] += xdot * deltaT;
-  currentLocation[1] += ydot * deltaT;
-  currentLocation[2] += thetadot * deltaT;
 }
 
 void updateEncoder() {
