@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from time import sleep
 import rclpy
 from rclpy.node import Node
 
@@ -20,45 +21,65 @@ import numpy as np
 
 import serial
 
-ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=1)
-ser.reset_input_buffer()
 
 class MinimalSubscriber(Node):
 
     def __init__(self):
-        super().__init__('minimal_subscriber') # type: ignore
+        super().__init__('lidar_subscriber')  # type: ignore
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
             self.listener_callback,
             10)
-        self.subscription  # prevent unused variable warning
+        self.ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=0.01)
+        self.ser.reset_input_buffer()
+        self.calibrated = False
 
     def listener_callback(self, msg):
-        # self.get_logger().info('I heard: "%s"' % msg.ranges)
-        DISTANCE_THRESHOLD = 0.25
-        NUM_DIVISIONS = 5
-        
+        while not self.calibrated:
+            output_line = self.ser.readline().decode().rstrip()
+            if output_line:
+                print(output_line)
+            self.calibrated = output_line == "Done calibrate!"
+
+        DISTANCE_THRESHOLD = 0.5
+        LEFT_DISTANCE_RANGE = (0.1, 0.4)
+
         full_ranges = np.array(msg.ranges)
         num_points = len(full_ranges)
-        
-        front_range = full_ranges[-round(num_points/2**NUM_DIVISIONS):] + full_ranges[:round(num_points/2**NUM_DIVISIONS)]
-        left_range = full_ranges[round(num_points/2**NUM_DIVISIONS)*NUM_DIVISIONS*4:round(num_points/2**NUM_DIVISIONS)*(NUM_DIVISIONS+1)*4]
-        
-        is_front = np.nanmean(front_range) <= DISTANCE_THRESHOLD
-        is_left = np.nanmean(left_range) <= DISTANCE_THRESHOLD
-        
-        out_data = ""
-        if is_front:
-            out_data = "y"
-        elif is_left:
-            out_data = str(np.nanmean(left_range))
-        else:
-            out_data = "n"
-        
-        ser.write((out_data + "\n").encode("utf-8"))
-        output_line = ser.readline().decode('utf-8').rstrip()
-        print(output_line)            
+
+        front_range = full_ranges[-round(num_points/32):] + \
+            full_ranges[:round(num_points/32)]
+        left_range = full_ranges[round(
+            num_points*23/32):round(num_points*25/32)]
+
+        is_front = (np.nanmean(front_range) <= DISTANCE_THRESHOLD) and not (
+            np.nanmean(front_range) == np.nan)
+        is_left = LEFT_DISTANCE_RANGE[0] <= np.nanmean(left_range) <= LEFT_DISTANCE_RANGE[1] and not (
+            np.nanmean(left_range) == np.nan)
+        is_close_left = np.nanmean(left_range) < LEFT_DISTANCE_RANGE[0] and not (
+            np.nanmean(left_range) == np.nan)
+        is_far_left = LEFT_DISTANCE_RANGE[1] < np.nanmean(left_range) and not (
+            np.nanmean(left_range) == np.nan)
+
+        out_data = "y" if is_front else "n"
+        if is_left:
+            out_data += "l"
+        elif is_close_left:
+            out_data += "c"
+        elif is_far_left:
+            out_data += "f"
+
+        self.ser.write(f"{out_data}\n".encode())
+        self.get_logger().info(f'Sending: {out_data}')
+
+        # sleep(0.1)
+
+        output_line = self.ser.readline().decode().strip()
+        if output_line:
+            self.get_logger().info(f'Received: {output_line}')
+        # output_line = self.ser.readline().decode().strip()
+        # self.get_logger().info(f'Received: {output_line}')
 
 
 def main(args=None):
