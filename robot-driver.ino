@@ -1,24 +1,24 @@
 #include <QTRSensors.h>
 
-#define MotFwdL 9   // Motor Forward pin left
-#define MotRevL 10  // Motor Reverse pin left
+#define MotFwdL 9  // Motor Forward pin left
+#define MotRevL 10 // Motor Reverse pin left
 
-#define MotFwdR 11  // Motor Forward pin right
-#define MotRevR 12  // Motor Reverse pin right
+#define MotFwdR 11 // Motor Forward pin right
+#define MotRevR 12 // Motor Reverse pin right
 
-int encoderPin1 = 21;  // 10; //Encoder Output 'A' must connected with intreput pin of arduino.
-int encoderPin2 = 20;  // 11; //Encoder Otput 'B' must connected with intreput pin of arduino.
+int encoderPin1 = 21; // 10; //Encoder Output 'A' must connected with intreput pin of arduino.
+int encoderPin2 = 20; // 11; //Encoder Otput 'B' must connected with intreput pin of arduino.
 
-int encoderPin3 = 18;  // Encoder Output 'A' must connected with intreput pin of arduino.
-int encoderPin4 = 19;  // Encoder Otput 'B' must connected with intreput pin of arduino.
+int encoderPin3 = 18; // Encoder Output 'A' must connected with intreput pin of arduino.
+int encoderPin4 = 19; // Encoder Otput 'B' must connected with intreput pin of arduino.
 
 int startBtnPin = 7;
 
-volatile int lastEncodedL = 0;    // Here updated value of encoder store.
-volatile long encoderValueL = 0;  // Raw encoder value
+volatile int lastEncodedL = 0;   // Here updated value of encoder store.
+volatile long encoderValueL = 0; // Raw encoder value
 
-volatile int lastEncodedR = 0;    // Here updated value of encoder store.
-volatile long encoderValueR = 0;  // Raw encoder value
+volatile int lastEncodedR = 0;   // Here updated value of encoder store.
+volatile long encoderValueR = 0; // Raw encoder value
 
 int enL = 8;
 int enR = 13;
@@ -41,7 +41,7 @@ int sensorSum = 0;
 bool nextPhase = false;
 bool STOP = false;
 bool follow_line = true;
-const int K = 20;  // adjust K for smooth response
+const int K = 20; // adjust K for smooth response
 
 QTRSensors qtr;
 
@@ -54,10 +54,12 @@ float encoderRMS = 0;
 bool isEnd = false;
 bool disablePID = false;
 bool readSign = false;
+String sign = "";
 
 long startTime = 0;
 
-void setup() {
+void setup()
+{
   Serial.println("Test");
   pinMode(MotFwdL, OUTPUT);
   pinMode(MotRevL, OUTPUT);
@@ -71,14 +73,14 @@ void setup() {
   pinMode(encoderPin4, INPUT_PULLUP);
   pinMode(startBtnPin, INPUT_PULLUP);
 
-  digitalWrite(encoderPin1, HIGH);  // turn pullup resistor on
-  digitalWrite(encoderPin2, HIGH);  // turn pullup resistor on
-  digitalWrite(encoderPin3, HIGH);  // turn pullup resistor on
-  digitalWrite(encoderPin4, HIGH);  // turn pullup resistor on
+  digitalWrite(encoderPin1, HIGH); // turn pullup resistor on
+  digitalWrite(encoderPin2, HIGH); // turn pullup resistor on
+  digitalWrite(encoderPin3, HIGH); // turn pullup resistor on
+  digitalWrite(encoderPin4, HIGH); // turn pullup resistor on
   Serial.begin(9600);
 
   qtr.setTypeRC();
-  qtr.setSensorPins((const uint8_t[]){ A2, A3, A4, A5, A6 }, SensorCount);
+  qtr.setSensorPins((const uint8_t[]){A2, A3, A4, A5, A6}, SensorCount);
 
   // call updateEncoder() when any high/low changed seen
   // on interrupt 0 (pin 2), or interrupt 1 (pin 3)
@@ -87,21 +89,25 @@ void setup() {
   attachInterrupt(4, updateEncoder, CHANGE);
   attachInterrupt(5, updateEncoder, CHANGE);
 
-  if (!disablePID) {
+  if (!disablePID)
+  {
     Serial.println("Calibrating...");
-    for (uint16_t i = 0; i < 400; i++) {
+    for (uint16_t i = 0; i < 400; i++)
+    {
       qtr.calibrate();
     }
 
     // print the calibration minimum values measured when emitters were on
-    for (uint8_t i = 0; i < SensorCount; i++) {
+    for (uint8_t i = 0; i < SensorCount; i++)
+    {
       Serial.print(qtr.calibrationOn.minimum[i]);
       Serial.print(' ');
     }
     Serial.println();
 
     // print the calibration maximum values measured when emitters were on
-    for (uint8_t i = 0; i < SensorCount; i++) {
+    for (uint8_t i = 0; i < SensorCount; i++)
+    {
       Serial.print(qtr.calibrationOn.maximum[i]);
       Serial.print(' ');
     }
@@ -109,98 +115,101 @@ void setup() {
 
     Serial.println("Done calibrate!");
   }
-  while (digitalRead(startBtnPin) == HIGH) {}
+  while (digitalRead(startBtnPin) == HIGH)
+  {
+  }
   delay(2000);
 }
 
-void loop() {
+void loop()
+{
   uint16_t positionLine = qtr.readLineBlack(sensorValues);
   // Serial.print("Sensors: ");
 
   sensorSum = 0;
-  for (uint8_t i = 0; i < SensorCount; i++) {
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
     // Serial.print(sensorValues[i]);
     // Serial.print('\t');
     sensorSum += sensorValues[i];
   }
 
-  if (isEnd && (digitalRead(startBtnPin) == LOW)) {
+  if (isEnd && (digitalRead(startBtnPin) == LOW))
+  {
     isEnd = false;
     delay(2000);
   }
 
-  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 5000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd)) { //stop when meet horizontal line
+  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 5000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd))
+  { // stop when meet horizontal line
     stop();
     isEnd = true;
-    // delay(500);
     startTime = 0;
-    readSign = !readSign;
-    if (readSign) {
-      //after reaching horizontal line -> stop to read traffic sign 
-      if (Serial.available() > 0) {
-          String sign = Serial.readStringUntil('\n');
-          Serial.println('c');
-          while (true) {
-
-            sign = Serial.readStringUntil('\n');
-            if (sign != 's' ||sign != 'r' ||sign != 'l' ) {
-              continue;
-            }
-            Serial.println(sign); 
-            if (sign == 's') {
-              //PID
-              // readSign = false;
-              startTime = millis();
-              break;
-            } else if (sign == 'l') {
-              //move forward, reach horizontal line, then turn left 
-              startTime = millis();
-              while (sensorSum < 4000) {
-                forward_movement(200, 200);
-              }
-              stop();
-              forward_movement(100, -100);
-              break;
-              // readSign = false;
-            } else if (sign == 'r') {
-              //move forward, reach horizontal line, then turn right 
-              startTime = millis();
-              while (sensorSum < 4000) {
-                forward_movement(200, 200);
-              }
-              stop();
-              forward_movement(-100, 100);
-              break;
-              // readSign = false;
-            }
-          }
-          
-      } 
-    
-    } 
+    delay(500);
   }
 
+  if (sensorSum >= 4000) 
+  {
+    // after reaching horizontal line -> stop to read traffic sign
+    if (Serial.available() > 0)
+    {
+      Serial.println('c');
+      while (sign != 's' || sign != 'r' || sign != 'l')
+      {
+        sign = Serial.readStringUntil('\n');
+      }
 
-
-  if (!isEnd) {
-    
-
-    if (!disablePID) {
-      if (follow_line) {
+      readSign = false;
+      Serial.println(sign);
+      while (sensorSum < 4000)
+      {
         PID_control();
       }
-    } else {
+      stop();
+
+      if (sign == 's')
+      {
+        isEnd = true;
+      }
+      else if (sign == 'l')
+      {
+        // move forward, reach horizontal line, then turn left
+        findLeft();
+      }
+      else if (sign == 'r')
+      {
+        // move forward, reach horizontal line, then turn right
+        findRight();
+      }
+    }
+  }
+
+  if (!isEnd)
+  {
+    if (!disablePID)
+    {
+      if (follow_line)
+      {
+        PID_control();
+      }
+    }
+    else
+    {
       forward_movement(200, 200);
     }
 
-    if (Serial.available() > 0) {
+    if (Serial.available() > 0)
+    {
       String lidarData = Serial.readStringUntil('\n');
       Serial.println(lidarData);
 
-      if (lidarData[0] == 'y') {
+      if (lidarData[0] == 'y')
+      {
 
-        while ((lidarData[0] == 'y') && (lidarData[1] != 'l')) {
-          if (digitalRead(startBtnPin) == LOW) {
+        while ((lidarData[0] == 'y') && (lidarData[1] != 'l'))
+        {
+          if (digitalRead(startBtnPin) == LOW)
+          {
             stop();
             isEnd = true;
           }
@@ -212,26 +221,34 @@ void loop() {
         stop();
         delay(2000);
 
-        do {
+        do
+        {
           uint16_t positionLine = qtr.readLineBlack(sensorValues);
 
           sensorSum = 0;
-          for (uint8_t i = 0; i < SensorCount; i++) {
+          for (uint8_t i = 0; i < SensorCount; i++)
+          {
             sensorSum += sensorValues[i];
           }
 
-          if (digitalRead(startBtnPin) == LOW) {
+          if (digitalRead(startBtnPin) == LOW)
+          {
             stop();
             isEnd = true;
             break;
           }
-          if (lidarData[1] == 'c') {
+          if (lidarData[1] == 'c')
+          {
             forward_movement(75, -75);
             Serial.println("r");
-          } else if (lidarData[1] == 'f') {
+          }
+          else if (lidarData[1] == 'f')
+          {
             forward_movement(-75, 75);
             Serial.println("l");
-          } else if (lidarData[1] == 'l') {
+          }
+          else if (lidarData[1] == 'l')
+          {
             forward_movement(200, 200);
             Serial.println("s");
           }
@@ -244,34 +261,63 @@ void loop() {
     }
   }
 
-
-    if (digitalRead(startBtnPin) == LOW) {
-      stop();
-      isEnd = true;
-    }
-
+  if (digitalRead(startBtnPin) == LOW)
+  {
+    stop();
+    isEnd = true;
+  }
 }
 
-
-
-void stop() {
+void stop()
+{
   digitalWrite(MotFwdL, LOW);
   digitalWrite(MotRevL, LOW);
   digitalWrite(MotFwdR, LOW);
   digitalWrite(MotRevR, LOW);
 }
 
-bool isOffLine() {
+bool isOffLine()
+{
   return sensorSum < 500;
 }
 
-int PID_control() {
+void findLeft()
+{
+  while (sensorValues[4] > 100)
+  {
+    forward_movement(-75, 75);
+  }
+  delay(100);
+
+  while (sensorValues[4] < 100)
+  {
+    forward_movement(-75, 75);
+  }
+}
+
+void findRight()
+{
+  while (sensorValues[0] > 100)
+  {
+    forward_movement(75, -75);
+  }
+  delay(100);
+
+  while (sensorValues[0] < 100)
+  {
+    forward_movement(75, -75);
+  }
+}
+
+int PID_control()
+{
   uint16_t positionLine = qtr.readLineBlack(sensorValues);
   // Serial.print("Sensors: ");
 
   sensorSum = 0;
 
-  for (uint8_t i = 0; i < SensorCount; i++) {
+  for (uint8_t i = 0; i < SensorCount; i++)
+  {
     // Serial.print(sensorValues[i]);
     // Serial.print('\t');
     sensorSum += sensorValues[i];
@@ -300,36 +346,47 @@ int PID_control() {
   // Serial.print("Speed Right:");
   // Serial.println(motorSpeedB);
 
-  if (motorSpeedA > 255) {
+  if (motorSpeedA > 255)
+  {
     motorSpeedA = 255;
   }
-  if (motorSpeedB > 255) {
+  if (motorSpeedB > 255)
+  {
     motorSpeedB = 255;
   }
-  if (motorSpeedA < 0) {
+  if (motorSpeedA < 0)
+  {
     motorSpeedA = 0;
   }
-  if (motorSpeedB < 0) {
+  if (motorSpeedB < 0)
+  {
     motorSpeedB = 0;
   }
 
   forward_movement(motorSpeedA, motorSpeedB);
 }
 
-void forward_movement(int speedA, int speedB) {
-  if (speedA >= 0) {
+void forward_movement(int speedA, int speedB)
+{
+  if (speedA >= 0)
+  {
     digitalWrite(MotFwdL, HIGH);
     digitalWrite(MotRevL, LOW);
-  } else {
+  }
+  else
+  {
     digitalWrite(MotFwdL, LOW);
     digitalWrite(MotRevL, HIGH);
     speedA = -speedA;
   }
 
-  if (speedB >= 0) {
+  if (speedB >= 0)
+  {
     digitalWrite(MotFwdR, HIGH);
     digitalWrite(MotRevR, LOW);
-  } else {
+  }
+  else
+  {
     digitalWrite(MotFwdR, LOW);
     digitalWrite(MotRevR, HIGH);
     speedB = -speedB;
@@ -340,29 +397,30 @@ void forward_movement(int speedA, int speedB) {
   analogWrite(enR, speedB);
 }
 
-void updateEncoder() {
-  int MSBL = digitalRead(encoderPin1);  // MSB = most significant bit
-  int LSBL = digitalRead(encoderPin2);  // LSB = least significant bit
-  int MSBR = digitalRead(encoderPin3);  // MSB = most significant bit
-  int LSBR = digitalRead(encoderPin4);  // LSB = least significant bit
+void updateEncoder()
+{
+  int MSBL = digitalRead(encoderPin1); // MSB = most significant bit
+  int LSBL = digitalRead(encoderPin2); // LSB = least significant bit
+  int MSBR = digitalRead(encoderPin3); // MSB = most significant bit
+  int LSBR = digitalRead(encoderPin4); // LSB = least significant bit
 
-  int encodedL = (MSBL << 1) | LSBL;          // converting the 2 pin value to single number
-  int sumL = (lastEncodedL << 2) | encodedL;  // adding it to the previous encoded value
+  int encodedL = (MSBL << 1) | LSBL;         // converting the 2 pin value to single number
+  int sumL = (lastEncodedL << 2) | encodedL; // adding it to the previous encoded value
 
   if (sumL == 0b1101 || sumL == 0b0100 || sumL == 0b0010 || sumL == 0b1011)
     encoderValueL--;
   if (sumL == 0b1110 || sumL == 0b0111 || sumL == 0b0001 || sumL == 0b1000)
     encoderValueL++;
 
-  lastEncodedL = encodedL;  // store this value for next time
+  lastEncodedL = encodedL; // store this value for next time
 
-  int encodedR = (MSBR << 1) | LSBR;          // converting the 2 pin value to single number
-  int sumR = (lastEncodedR << 2) | encodedR;  // adding it to the previous encoded value
+  int encodedR = (MSBR << 1) | LSBR;         // converting the 2 pin value to single number
+  int sumR = (lastEncodedR << 2) | encodedR; // adding it to the previous encoded value
 
   if (sumR == 0b1101 || sumR == 0b0100 || sumR == 0b0010 || sumR == 0b1011)
     encoderValueR--;
   if (sumR == 0b1110 || sumR == 0b0111 || sumR == 0b0001 || sumR == 0b1000)
     encoderValueR++;
 
-  lastEncodedR = encodedR;  // store this value for next time
+  lastEncodedR = encodedR; // store this value for next time
 }
