@@ -54,6 +54,7 @@ float encoderRMS = 0;
 bool isEnd = false;
 bool disablePID = false;
 bool readSign = false;
+int countFullLine = 0;
 String sign = "";
 
 long startTime = 0;
@@ -140,29 +141,50 @@ void loop()
     delay(2000);
   }
 
-  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 5000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd))
+  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 3000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd))
   { // stop when meet horizontal line
     stop();
     isEnd = true;
     startTime = 0;
+    countFullLine++;
     delay(500);
   }
 
-  if (sensorSum >= 4000) 
+  if (countFullLine == 1)
   {
     // after reaching horizontal line -> stop to read traffic sign
     if (Serial.available() > 0)
     {
       Serial.println('c');
-      while (sign != 's' || sign != 'r' || sign != 'l')
+      // while (sign != 's' || sign != 'r' || sign != 'l')
+      // {
+      sign = Serial.readStringUntil('\n');
+      // }
+
+      Serial.println(sign);
+      forward_movement(200, 200);
+      delay(500);
+
+      uint16_t positionLine = qtr.readLineBlack(sensorValues);
+      // Serial.print("Sensors: ");
+
+      sensorSum = 0;
+      for (uint8_t i = 0; i < SensorCount; i++)
       {
-        sign = Serial.readStringUntil('\n');
+        // Serial.print(sensorValues[i]);
+        // Serial.print('\t');
+        sensorSum += sensorValues[i];
       }
 
-      readSign = false;
-      Serial.println(sign);
       while (sensorSum < 4000)
       {
+        sensorSum = 0;
+        for (uint8_t i = 0; i < SensorCount; i++)
+        {
+          // Serial.print(sensorValues[i]);
+          // Serial.print('\t');
+          sensorSum += sensorValues[i];
+        }
         PID_control();
       }
       stop();
@@ -181,6 +203,7 @@ void loop()
         // move forward, reach horizontal line, then turn right
         findRight();
       }
+      startTime = millis();
     }
   }
 
