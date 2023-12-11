@@ -53,6 +53,7 @@ float encoderRMS = 0;
 
 bool isEnd = false;
 bool disablePID = false;
+bool readSign = false;
 
 long startTime = 0;
 
@@ -125,16 +126,65 @@ void loop() {
 
   if (isEnd && (digitalRead(startBtnPin) == LOW)) {
     isEnd = false;
-    delay(500);
-  }
-  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 5000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd)) {
-    stop();
-    isEnd = true;
-    delay(500);
-    startTime = 0;
+    delay(2000);
   }
 
+  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 5000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd)) { //stop when meet horizontal line
+    stop();
+    isEnd = true;
+    // delay(500);
+    startTime = 0;
+    readSign = !readSign;
+    if (readSign) {
+      //after reaching horizontal line -> stop to read traffic sign 
+      if (Serial.available() > 0) {
+          String sign = Serial.readStringUntil('\n');
+          Serial.println('c');
+          while (true) {
+
+            sign = Serial.readStringUntil('\n');
+            if (sign != 's' ||sign != 'r' ||sign != 'l' ) {
+              continue;
+            }
+            Serial.println(sign); 
+            if (sign == 's') {
+              //PID
+              // readSign = false;
+              startTime = millis();
+              break;
+            } else if (sign == 'l') {
+              //move forward, reach horizontal line, then turn left 
+              startTime = millis();
+              while (sensorSum < 4000) {
+                forward_movement(200, 200);
+              }
+              stop();
+              forward_movement(100, -100);
+              break;
+              // readSign = false;
+            } else if (sign == 'r') {
+              //move forward, reach horizontal line, then turn right 
+              startTime = millis();
+              while (sensorSum < 4000) {
+                forward_movement(200, 200);
+              }
+              stop();
+              forward_movement(-100, 100);
+              break;
+              // readSign = false;
+            }
+          }
+          
+      } 
+    
+    } 
+  }
+
+
+
   if (!isEnd) {
+    
+
     if (!disablePID) {
       if (follow_line) {
         PID_control();
@@ -192,14 +242,16 @@ void loop() {
         startTime = millis();
       }
     }
+  }
 
 
     if (digitalRead(startBtnPin) == LOW) {
       stop();
       isEnd = true;
     }
-  }
+
 }
+
 
 
 void stop() {
