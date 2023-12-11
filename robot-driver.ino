@@ -176,10 +176,10 @@ void loop() {
             break;
           }
           if (lidarData[1] == 'c') {
-            forward_movement(100, -100);
+            forward_movement(75, -75);
             Serial.println("r");
           } else if (lidarData[1] == 'f') {
-            forward_movement(-100, 100);
+            forward_movement(-75, 75);
             Serial.println("l");
           } else if (lidarData[1] == 'l') {
             forward_movement(200, 200);
