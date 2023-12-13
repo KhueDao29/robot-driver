@@ -36,30 +36,23 @@ class MinimalSubscriber(Node):
             10)
         self.ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=0.01)
         self.ser.reset_input_buffer()
-        self.calibrated = True
-        self.cam = cv2.VideoCapture(1)
-        sleep(3)
+        self.calibrated = False
+        self.cam = cv2.VideoCapture(0)
+        # sleep(3)
     
-    def capture_frames(self, num_frames=10, frames_dir="frames", file_name="frame"):        
-        frame_idx = 1
-        while frame_idx <= num_frames:
+    def capture_frames(self, frames_dir="frames", file_name="frame"):        
+        while True:
             ret, frame = self.cam.read()
         
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if cv2.countNonZero(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)) > 0:
-                plt.imsave(f"{frames_dir}/{file_name}{frame_idx}.jpg", frame)
-                frame_idx += 1
-    
-        self.cam.release() 
-    
-    def getSign(self, frame, threshold=0.7, signs_dir="traffic_signs"):        
-        template_left = cv2.imread(f"{signs_dir}/left.png", 0)
-        template_right = cv2.imread(f"{signs_dir}/right.png", 0)
-        template_stop = cv2.imread(f"{signs_dir}/stop.png", 0)
-        
-        templates = [template_stop, template_left, template_right]
+                plt.imsave(f"{frames_dir}/{file_name}.jpg", frame)
+                break
+
+    def getSign(self, frame, signs, threshold=0.7, signs_dir="traffic_signs"):        
+        templates = [cv2.imread(f"{signs_dir}/{sign}.png", 0) for sign in signs]
         all_signs = []
-        for scint in range(100, 300, 10):
+        for scint in range(100, 400, 10):
             scale = scint/100.0
             for stemp in templates:
                 all_signs.append((cv2.resize(stemp, (int(64*scale), int(64*scale))), scale))
@@ -82,7 +75,7 @@ class MinimalSubscriber(Node):
         if curMaxTemplate == -1:
             return (-1, (0, 0), 0, 0)
         else:
-            return (curMaxTemplate % 3, curMaxLoc, curScale, curMaxVal)        
+            return (curMaxTemplate % len(templates), curMaxLoc, curScale, curMaxVal)        
 
     def listener_callback(self, msg):
         while not self.calibrated:
@@ -115,29 +108,37 @@ class MinimalSubscriber(Node):
         if output_line:
             self.get_logger().info(f'Received: {output_line}')
             if output_line == "c":
-                self.capture_frames()
                 
                 # frames capture are in /frames/frame[1-10].jpg
                 # return: s: stop, l: lefxt, r: right
-                TEMPLATE2STRING = {0: "s", 1: "l", 2: "r"}
-                for i in range(10):
-                    frame = cv2.imread(f"frames/frame{i+1}.jpg")
+                signs = {"stop": 0, "left": 0, "right": 0, "around": 0}
+                
+                for _ in range(5):
+                    curSign = list(signs)[template]
+                    self.capture_frames()
+                    frame = cv2.imread(f"frames/frame.jpg")
                     template = -1
-                    (template, top_left, scale, val) = self.getSign(frame)
+                    (template, top_left, scale, val) = self.getSign(frame, list(signs))
                     if template != -1:
                         bottom_right = (top_left[0] + int(64*scale),
                                         top_left[1] + int(64*scale))
                         cv2.rectangle(frame, top_left, bottom_right, 255, 2)
                         cv2.putText(frame, str(round(val, 5)), (20, 350),
                                     cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
-                        cv2.putText(frame, TEMPLATE2STRING[template], (20, 450),
+                        cv2.putText(frame, curSign, (20, 450),
                                     cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 2)
-                        print("Detected:", TEMPLATE2STRING[template])
-                        self.ser.write(f"{TEMPLATE2STRING[template]}\n".encode())
-                        self.get_logger().info(f'Sending: {TEMPLATE2STRING[template]}')
+                        print("Detected:", curSign)
+                        signs[curSign] += 1
                     else:
                         print("Sign not detected!")
-                sleep(5)
+                
+                out_data = max(signs, key=lambda a: signs[a])[0]
+                self.ser.write(f"{list(signs)[template][0]}\n".encode())
+                self.get_logger().info(f'Sending: {list(signs)[template]}')
+                while (output_line:=self.ser.readline().decode().strip()) != out_data:
+                    print("Wrong output:", output_line)
+                    sleep(0.01)
+                self.get_logger().info(f'Received: {output_line}')
         else:
             out_data = "y" if is_front else "n"
             if is_left:
