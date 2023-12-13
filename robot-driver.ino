@@ -6,19 +6,8 @@
 #define MotFwdR 11  // Motor Forward pin right
 #define MotRevR 12  // Motor Reverse pin right
 
-int encoderPin1 = 21;  // 10; //Encoder Output 'A' must connected with intreput pin of arduino.
-int encoderPin2 = 20;  // 11; //Encoder Otput 'B' must connected with intreput pin of arduino.
-
-int encoderPin3 = 18;  // Encoder Output 'A' must connected with intreput pin of arduino.
-int encoderPin4 = 19;  // Encoder Otput 'B' must connected with intreput pin of arduino.
-
-int startBtnPin = 7;
-
-volatile int lastEncodedL = 0;    // Here updated value of encoder store.
-volatile long encoderValueL = 0;  // Raw encoder value
-
-volatile int lastEncodedR = 0;    // Here updated value of encoder store.
-volatile long encoderValueR = 0;  // Raw encoder value
+int startBtnPin = 2;
+int bumpPin = A0;
 
 int enL = 8;
 int enR = 13;
@@ -48,12 +37,11 @@ float encoderLMS = 0;
 float encoderRMS = 0;
 
 bool isEnd = false;
-bool disablePID = false;
 bool readSign = false;
+bool followedSign = false;
 int countFullLine = 0;
-String sign = "";
-
 long startTime = 0;
+String sign = "";
 
 void setup() {
   Serial.println("Test");
@@ -63,171 +51,166 @@ void setup() {
   pinMode(MotRevR, OUTPUT);
   pinMode(enR, OUTPUT);
   pinMode(enL, OUTPUT);
-  pinMode(encoderPin1, INPUT_PULLUP);
-  pinMode(encoderPin2, INPUT_PULLUP);
-  pinMode(encoderPin3, INPUT_PULLUP);
-  pinMode(encoderPin4, INPUT_PULLUP);
   pinMode(startBtnPin, INPUT_PULLUP);
+  pinMode(bumpPin, INPUT_PULLUP);
 
-  digitalWrite(encoderPin1, HIGH);  // turn pullup resistor on
-  digitalWrite(encoderPin2, HIGH);  // turn pullup resistor on
-  digitalWrite(encoderPin3, HIGH);  // turn pullup resistor on
-  digitalWrite(encoderPin4, HIGH);  // turn pullup resistor on
   Serial.begin(9600);
 
   qtr.setTypeRC();
   qtr.setSensorPins((const uint8_t[]){ A2, A3, A4, A5, A6 }, SensorCount);
 
-  // call updateEncoder() when any high/low changed seen
-  // on interrupt 0 (pin 2), or interrupt 1 (pin 3)
-  attachInterrupt(2, updateEncoder, CHANGE);
-  attachInterrupt(3, updateEncoder, CHANGE);
-  attachInterrupt(4, updateEncoder, CHANGE);
-  attachInterrupt(5, updateEncoder, CHANGE);
-
-  if (!disablePID) {
-    Serial.println("Calibrating...");
-    for (uint16_t i = 0; i < 400; i++) {
-      qtr.calibrate();
-    }
-
-    // print the calibration minimum values measured when emitters were on
-    for (uint8_t i = 0; i < SensorCount; i++) {
-      Serial.print(qtr.calibrationOn.minimum[i]);
-      Serial.print(' ');
-    }
-    Serial.println();
-
-    // print the calibration maximum values measured when emitters were on
-    for (uint8_t i = 0; i < SensorCount; i++) {
-      Serial.print(qtr.calibrationOn.maximum[i]);
-      Serial.print(' ');
-    }
-    Serial.println();
-
-    Serial.println("Done calibrate!");
+  Serial.println("Calibrating...");
+  for (uint16_t i = 0; i < 400; i++) {
+    qtr.calibrate();
   }
-  while (digitalRead(startBtnPin) == HIGH) {
+
+  // print the calibration minimum values measured when emitters were on
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.minimum[i]);
+    Serial.print(' ');
   }
+  Serial.println();
+
+  // print the calibration maximum values measured when emitters were on
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.maximum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+
+  Serial.println("Done calibrate!");
+  while (digitalRead(startBtnPin) == HIGH) {}
   delay(2000);
+
+  // Stop when push the button
+  attachInterrupt(digitalPinToInterrupt(startBtnPin), manualRestart, FALLING);
+}
+
+void manualRestart() {
+  stop();
+  while (digitalRead(startBtnPin) == LOW) {}
+  countFullLine = 0;
+  readSign = false;
+  followedSign = false;
 }
 
 void loop() {
-  sensorSum = 0;
-  for (uint8_t i = 0; i < SensorCount; i++) {
-    sensorSum += sensorValues[i];
-  }
-  
-  if (isEnd && (digitalRead(startBtnPin) == LOW)) {
-    isEnd = false;
-    delay(2000);
+  // Hit obstacle
+  if (digitalRead(bumpPin) == HIGH) {
+    // Move back
+    stop();
+    delay(1000);
+    move('b');
+    delay(1000);
   }
 
-  if ((((sensorSum >= 4000) && !disablePID && (millis() - startTime > 3000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd)) {  // stop when meet horizontal line
-    stop();
-    isEnd = true;
+  // if ((((sensorSum >= 4000) && (millis() - startTime > 3000)) || (digitalRead(startBtnPin) == LOW)) && (!isEnd)) {  // stop when meet horizontal line
+  //   stop();
+  //   isEnd = true;
+  //   countFullLine++;
+  //   delay(500);
+  // }
+
+  // Count line
+  updateSensorSum();
+  if ((sensorSum >= 4000) && (millis() - startTime > 3000)) {
     countFullLine++;
+    stop();
     delay(500);
   }
 
-  if (countFullLine == 1) {
-    // after reaching horizontal line -> stop to read traffic sign
+  // Activate read sign when go through line the first time
+  if ((countFullLine == 1) && (!readSign)) {
+    // Send 'c' to Raspberry Pi
     Serial.println("c");
 
+    //Wait for Raspberry Pi to send sign data
     while ((sign[0] != 'l') && (sign[0] != 'r') && (sign[0] != 's') && (sign[0] != 'a')) {
       if (Serial.available() > 0) {
         sign = Serial.readStringUntil('\n');
-        // Serial.println("k");
-        // delay(100);
         Serial.println(sign);
       }
     }
+
     startTime = millis();
-    isEnd = false;
-    countFullLine++;
+    readSign = true;
   }
 
-  if (countFullLine == 3) {
+  // Follow sign when go through line the second time
+  if ((countFullLine == 2) && (!followedSign)) {
     if (sign[0] == 's') {
-      // Serial.println("Stop!");
+      // Stop
       isEnd = true;
     } else if (sign[0] == 'l') {
-      // move forward, reach horizontal line, then turn left
-      // Serial.println("Turn left!");
-      findLeft();
+      // Left
+      move('l');
+      delay(1000);
+      isEnd = false;
     } else if (sign[0] == 'r') {
-      // Serial.println("Turn right!");
-      // move forward, reach horizontal line, then turn right
-      findRight();
+      // Right
+      move('r');
+      delay(1000);
+      isEnd = false;
     } else if (sign[0] == 'a') {
-      // Serial.println("Turn around!");
-      findLeft();
-      findLeft();
+      // Turn around
+      move('l');
+      delay(1000);
+      move('l');
+      delay(1000);
+      isEnd = false;
     }
+
     sign = "";
     startTime = millis();
-    // Serial.println("Done follow sign!");
-    isEnd = false;
-    countFullLine++;
+    followedSign = true;
+    stop();
     delay(1000);
   }
 
   if (!isEnd) {
-    if (!disablePID) {
-      if (follow_line) {
-        PID_control();
-      }
-    } else {
-      forward_movement(FORWARD_SPEED, FORWARD_SPEED);
+    if (follow_line) {
+      PID_control();
     }
 
     if (Serial.available() > 0) {
       String lidarData = Serial.readStringUntil('\n');
       Serial.println(lidarData);
 
+      // Found obstacle
       if (lidarData[0] == 'y') {
-
-        while ((lidarData[0] == 'y') && (lidarData[1] != 'l')) {
-          if (digitalRead(startBtnPin) == LOW) {
-            stop();
-            isEnd = true;
+        // Turn right until found openning infront and the obstacle on the left
+        do {
+          move('r');
+          if (Serial.available() > 0) {
+            lidarData = Serial.readStringUntil('\n');
+            Serial.println(lidarData);
           }
-          forward_movement(FORWARD_SPEED, -FORWARD_SPEED);
-          lidarData = Serial.readStringUntil('\n');
-          Serial.println(lidarData);
-        }
+        } while ((lidarData[0] == 'y') && (lidarData[1] != 'l') && !isOffLine());
 
         stop();
         delay(2000);
 
+        // Keep distance with the obstacle until back to line
         do {
-          if (digitalRead(startBtnPin) == LOW) {
-            stop();
-            isEnd = true;
-            break;
-          }
-
+          lidarData = Serial.readStringUntil('\n');
           if (lidarData[1] == 'c') {
-            forward_movement(TURN_SPEED, -TURN_SPEED);
+            // Too close to obstacle -> Turn right
+            move('r');
             Serial.println("r");
           } else if (lidarData[1] == 'f') {
-            forward_movement(-TURN_SPEED, TURN_SPEED);
+            // Too far to obstacle -> Turn left
+            move('l');
             Serial.println("l");
           } else if (lidarData[1] == 'l') {
-            forward_movement(FORWARD_SPEED, FORWARD_SPEED);
-            Serial.println("s");
+            // Perfect distance to obstacle -> Go forward
+            move('f');
+            Serial.println("f");
           }
-          lidarData = Serial.readStringUntil('\n');
         } while (isOffLine());
         stop();
         delay(2000);
       }
     }
-  }
-
-  if (digitalRead(startBtnPin) == LOW) {
-    stop();
-    isEnd = true;
   }
 }
 
@@ -238,60 +221,51 @@ void stop() {
   digitalWrite(MotRevR, LOW);
 }
 
-bool isOffLine() {
+void updateSensorSum() {
   sensorSum = 0;
   for (uint8_t i = 0; i < SensorCount; i++) {
     sensorSum += sensorValues[i];
   }
-  return sensorSum < 500;
+}
+
+bool isOffLine() {
+  updateSensorSum();
+  return sensorSum < 42;
 }
 
 void findLeft() {
-  // while (sensorValues[2] > 100) {
-  //   forward_movement(-TURN_SPEED, TURN_SPEED);
-  // }
-  // stop();
-  // delay(1000);
-
-  // while (sensorValues[2] < 100) {
-  //   forward_movement(-TURN_SPEED, TURN_SPEED);
-  // }
-  forward_movement(-TURN_SPEED, TURN_SPEED);
-  delay(1000);
+  while (!isOffLine()) {
+    move('l');
+  }
   stop();
   delay(1000);
+
+  while (isOffLine()) {
+    move('l');
+  }
 }
 
 void findRight() {
-  // while (sensorValues[2] > 100) {
-  //   forward_movement(TURN_SPEED, -TURN_SPEED);
-  // }
-  // stop();
-  // delay(1000);
-
-  // while (sensorValues[2] < 100) {
-  //   forward_movement(TURN_SPEED, -TURN_SPEED);
-  // }
-  forward_movement(TURN_SPEED, -TURN_SPEED);
-  delay(1000);
+  while (!isOffLine()) {
+    move('r');
+  }
   stop();
   delay(1000);
+
+  while (isOffLine()) {
+    move('r');
+  }
 }
 
 int PID_control() {
+  // for (uint8_t i = 0; i < SensorCount; i++) {
+  //   Serial.print(sensorValues[i]);
+  //   Serial.print(" ");
+  // }
+  // Serial.println();
+  // updateSensorSum();
+
   uint16_t positionLine = qtr.readLineBlack(sensorValues);
-  // Serial.print("Sensors: ");
-
-  sensorSum = 0;
-
-  for (uint8_t i = 0; i < SensorCount; i++) {
-    // Serial.print(sensorValues[i]);
-    // Serial.print('\t');
-    sensorSum += sensorValues[i];
-  }
-  // Serial.print("Position: ");
-  // Serial.print(positionLine);
-  // Serial.print('\t');
 
   int error = 2000 - positionLine;
 
@@ -301,17 +275,9 @@ int PID_control() {
   lastError = error;
 
   int motorSpeedChange = P * Kp + I * Ki + D * Kd;
-  // Serial.print("Error: ");
-  // Serial.print(motorSpeedChange);
-  // Serial.print("\t");
 
   int motorSpeedA = FORWARD_SPEED - motorSpeedChange;
   int motorSpeedB = FORWARD_SPEED + motorSpeedChange;
-  // Serial.print("Speed Left:");
-  // Serial.print(motorSpeedA);
-  // Serial.print(" ");
-  // Serial.print("Speed Right:");
-  // Serial.println(motorSpeedB);
 
   if (motorSpeedA > 255) {
     motorSpeedA = 255;
@@ -327,6 +293,18 @@ int PID_control() {
   }
 
   forward_movement(motorSpeedA, motorSpeedB);
+}
+
+void move(char command) {
+  if (command == 'l') {
+    forward_movement(-TURN_SPEED, TURN_SPEED);
+  } else if (command = 'r') {
+    forward_movement(TURN_SPEED, -TURN_SPEED);
+  } else if (command = 'f') {
+    forward_movement(FORWARD_SPEED, FORWARD_SPEED);
+  } else if (command = 'b') {
+    forward_movement(-FORWARD_SPEED, -FORWARD_SPEED);
+  }
 }
 
 void forward_movement(int speedA, int speedB) {
@@ -349,33 +327,5 @@ void forward_movement(int speedA, int speedB) {
   }
 
   analogWrite(enL, speedA);
-  // speedB += K * (encoderValueL - encoderValueR);
   analogWrite(enR, speedB);
-}
-
-void updateEncoder() {
-  int MSBL = digitalRead(encoderPin1);  // MSB = most significant bit
-  int LSBL = digitalRead(encoderPin2);  // LSB = least significant bit
-  int MSBR = digitalRead(encoderPin3);  // MSB = most significant bit
-  int LSBR = digitalRead(encoderPin4);  // LSB = least significant bit
-
-  int encodedL = (MSBL << 1) | LSBL;          // converting the 2 pin value to single number
-  int sumL = (lastEncodedL << 2) | encodedL;  // adding it to the previous encoded value
-
-  if (sumL == 0b1101 || sumL == 0b0100 || sumL == 0b0010 || sumL == 0b1011)
-    encoderValueL--;
-  if (sumL == 0b1110 || sumL == 0b0111 || sumL == 0b0001 || sumL == 0b1000)
-    encoderValueL++;
-
-  lastEncodedL = encodedL;  // store this value for next time
-
-  int encodedR = (MSBR << 1) | LSBR;          // converting the 2 pin value to single number
-  int sumR = (lastEncodedR << 2) | encodedR;  // adding it to the previous encoded value
-
-  if (sumR == 0b1101 || sumR == 0b0100 || sumR == 0b0010 || sumR == 0b1011)
-    encoderValueR--;
-  if (sumR == 0b1110 || sumR == 0b0111 || sumR == 0b0001 || sumR == 0b1000)
-    encoderValueR++;
-
-  lastEncodedR = encodedR;  // store this value for next time
 }
