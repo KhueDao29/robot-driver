@@ -37,7 +37,7 @@ class MinimalSubscriber(Node):
         self.ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=0.01)
         self.ser.reset_input_buffer()
         self.calibrated = False
-        self.cam = cv2.VideoCapture(0)
+        self.cam = cv2.VideoCapture(0, cv2.CAP_V4L2)
         # sleep(3)
     
     def capture_frames(self, frames_dir="frames", file_name="frame"):        
@@ -114,12 +114,12 @@ class MinimalSubscriber(Node):
                 signs = {"stop": 0, "left": 0, "right": 0, "around": 0}
                 
                 for _ in range(5):
-                    curSign = list(signs)[template]
                     self.capture_frames()
-                    frame = cv2.imread(f"frames/frame.jpg")
+                    frame = cv2.imread("frames/frame.jpg")
                     template = -1
                     (template, top_left, scale, val) = self.getSign(frame, list(signs))
                     if template != -1:
+                        curSign = list(signs)[template]
                         bottom_right = (top_left[0] + int(64*scale),
                                         top_left[1] + int(64*scale))
                         cv2.rectangle(frame, top_left, bottom_right, 255, 2)
@@ -127,14 +127,15 @@ class MinimalSubscriber(Node):
                                     cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
                         cv2.putText(frame, curSign, (20, 450),
                                     cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 2)
+                        plt.imsave("frames/frame.jpg", frame)
                         print("Detected:", curSign)
                         signs[curSign] += 1
                     else:
                         print("Sign not detected!")
                 
                 out_data = max(signs, key=lambda a: signs[a])[0]
-                self.ser.write(f"{list(signs)[template][0]}\n".encode())
-                self.get_logger().info(f'Sending: {list(signs)[template]}')
+                self.ser.write(f"{out_data}\n".encode())
+                self.get_logger().info(f'Sending: {out_data}')
                 while (output_line:=self.ser.readline().decode().strip()) != out_data:
                     print("Wrong output:", output_line)
                     sleep(0.01)
